@@ -69,6 +69,7 @@ function get_all_settings(): array {
         'closeTime'       => $out['closeTime']        ?? '22:00',
         'vatRate'         => (float)($out['vatRate']  ?? 7),
         'serviceCharge'   => (float)($out['serviceCharge'] ?? 0),
+        'promptPayQr'     => $out['promptPayQr']     ?? '',
     ];
 }
 

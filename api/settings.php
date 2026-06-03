@@ -11,7 +11,7 @@ if ($method === 'GET') {
 
 if ($method === 'PATCH') {
     $body = json_body();
-    $allowed = ['restaurantName','cuisine','openTime','closeTime','vatRate','serviceCharge'];
+    $allowed = ['restaurantName','cuisine','openTime','closeTime','vatRate','serviceCharge','promptPayQr'];
     foreach ($body as $k => $v) {
         if (!in_array($k, $allowed)) continue;
         $stmt = db()->prepare('INSERT INTO app_settings (key_name,value) VALUES (?,?) ON DUPLICATE KEY UPDATE value=?');

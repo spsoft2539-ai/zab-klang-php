@@ -347,6 +347,8 @@ function renderMenuTab(){
     : filtered.map(item=>{
         const tagMap={'เผ็ด':'bg-red-50 text-red-600','ฮิต':'bg-green-50 text-green-700','โปร':'bg-amber-50 text-amber-700'};
         const tagHtml=item.tag?`<span class="shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${tagMap[item.tag]||''}">${item.tag}</span>`:'';
+        // encode item data for edit button
+        const itemJson = encodeURIComponent(JSON.stringify(item));
         return `<div class="flex gap-3 rounded-[18px] bg-white p-3 ring-1 ring-[#F0E0D4]">
           <img src="${item.image||'https://placehold.co/64x64/F7EFE7/9D7F6A?text=🍽'}" class="h-16 w-16 rounded-xl object-cover shrink-0"/>
           <div class="min-w-0 flex-1">
@@ -358,6 +360,17 @@ function renderMenuTab(){
             <div class="mt-2 flex items-center justify-between">
               <span class="rounded-lg bg-[#F7EFE7] px-2 py-0.5 text-[10px] font-medium text-[#7C5B47]">${item.category}</span>
               <span class="text-[14px] font-bold text-[#E12717] tabular-nums">฿${item.price.toLocaleString()}</span>
+            </div>
+            <!-- ✏️ Edit + 🗑 Delete buttons -->
+            <div class="mt-2.5 flex gap-1.5">
+              <button onclick="showEditMenu(decodeURIComponent('${itemJson}'))"
+                class="flex flex-1 items-center justify-center gap-1 rounded-lg border border-[#E8D6C6] bg-[#F7F3EF] py-1.5 text-[11px] font-semibold text-[#5A4338] hover:bg-[#EFE8E0]">
+                ✏️ แก้ไข
+              </button>
+              <button onclick="deleteMenuItem('${item.id}','${item.name.replace(/'/g,"\\'")}')"
+                class="flex flex-1 items-center justify-center gap-1 rounded-lg border border-red-100 bg-red-50 py-1.5 text-[11px] font-semibold text-red-600 hover:bg-red-100">
+                🗑 ลบ
+              </button>
             </div>
           </div>
         </div>`;
@@ -419,6 +432,82 @@ function saveNewMenu(){
   });
 }
 
+/* ══ แก้ไขเมนู ══ */
+function showEditMenu(itemJson){
+  let item; try{ item=JSON.parse(itemJson); }catch(e){ return; }
+  const catOptions=categories.map(c=>`<option value="${c}"${c===item.category?' selected':''}>${c}</option>`).join('');
+  const tagOptions=[['','ไม่มี tag'],['เผ็ด','🌶 เผ็ด'],['ฮิต','⭐ ฮิต'],['โปร','🎉 โปร']]
+    .map(([v,l])=>`<option value="${v}"${(item.tag||'')=== v?' selected':''}>${l}</option>`).join('');
+  const escapedName = item.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+
+  $('#edit-menu-area').remove();
+  const form=`<div id="edit-menu-area" class="mb-5 rounded-[20px] bg-white p-5 ring-2 ring-[#E12717]/25 shadow-[0_4px_20px_rgba(225,39,23,0.08)]">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <p class="text-[10px] font-semibold uppercase tracking-wide text-[#E12717]">กำลังแก้ไข</p>
+        <h4 class="text-[15px] font-bold text-[#2C1713]">${item.name}</h4>
+      </div>
+      <button onclick="$('#edit-menu-area').remove()" class="h-8 w-8 flex items-center justify-center rounded-full bg-[#F7EFE7] text-[#5A4338]">✕</button>
+    </div>
+    <div class="space-y-3">
+      <input id="e-name" value="${item.name.replace(/"/g,'&quot;')}" placeholder="ชื่อเมนู *"
+        class="w-full rounded-xl border border-[#F0E0D4] px-4 py-2.5 text-[13px] outline-none focus:border-[#E12717]"/>
+      <textarea id="e-desc" rows="2" placeholder="คำอธิบาย"
+        class="w-full rounded-xl border border-[#F0E0D4] px-4 py-2.5 text-[13px] outline-none resize-none">${item.description||''}</textarea>
+      <div class="flex gap-2">
+        <input id="e-price" type="number" value="${item.price}" placeholder="ราคา *"
+          class="flex-1 rounded-xl border border-[#F0E0D4] px-4 py-2.5 text-[13px] outline-none focus:border-[#E12717]"/>
+        <select id="e-tag" class="flex-1 rounded-xl border border-[#F0E0D4] px-4 py-2.5 text-[13px] outline-none">
+          ${tagOptions}
+        </select>
+      </div>
+      <select id="e-cat" class="w-full rounded-xl border border-[#F0E0D4] px-4 py-2.5 text-[13px] outline-none">${catOptions}</select>
+      <div class="flex gap-3 items-center">
+        <img id="e-img-thumb" src="${item.image||'https://placehold.co/56x56/F7EFE7/9D7F6A?text=🍽'}"
+          class="h-14 w-14 rounded-xl object-cover ring-1 ring-[#F0E0D4] shrink-0"/>
+        <input id="e-img" value="${item.image||''}" placeholder="URL รูปภาพ"
+          class="flex-1 rounded-xl border border-[#F0E0D4] px-4 py-2.5 text-[13px] outline-none focus:border-[#E12717]"/>
+      </div>
+      <div class="flex gap-2 pt-1">
+        <button onclick="$('#edit-menu-area').remove()"
+          class="flex-1 rounded-xl border border-[#E8D6C6] bg-[#F7F3EF] py-2.5 text-[13px] font-medium text-[#2C1713]">ยกเลิก</button>
+        <button onclick="saveEditMenu('${item.id}')"
+          class="flex-[1.5] rounded-xl py-2.5 text-[13px] font-bold text-white btn-red shadow-[0_8px_16px_rgba(225,39,23,0.25)]">💾 บันทึกการแก้ไข</button>
+      </div>
+    </div>
+  </div>`;
+
+  if($('#add-menu-area').length) $('#add-menu-area').after(form);
+  else $('#tab-content').prepend(form);
+
+  $('#e-img').on('input',function(){
+    const v=$(this).val().trim();
+    $('#e-img-thumb').attr('src',v||'https://placehold.co/56x56/F7EFE7/9D7F6A?text=🍽');
+  });
+  $('html,body').animate({scrollTop:($('#edit-menu-area').offset().top-80)},300);
+}
+
+function saveEditMenu(id){
+  const body={name:$('#e-name').val().trim(),description:$('#e-desc').val().trim(),
+    price:parseFloat($('#e-price').val()),category:$('#e-cat').val(),
+    tag:$('#e-tag').val()||null,image:$('#e-img').val().trim()};
+  if(!body.name||!body.price) return alert('กรุณากรอกชื่อและราคา');
+  $.ajax({url:'api/menu_item.php?id='+encodeURIComponent(id),method:'PATCH',
+    contentType:'application/json',data:JSON.stringify(body),
+    success:function(){ $('#edit-menu-area').remove(); loadAll(); },
+    error:function(){ alert('บันทึกไม่สำเร็จ'); }
+  });
+}
+
+/* ══ ลบเมนู ══ */
+function deleteMenuItem(id, name){
+  if(!confirm('⚠️ ลบเมนู "'+name+'" ออก?\n\nไม่สามารถกู้คืนได้!')) return;
+  $.ajax({url:'api/menu_item.php?id='+encodeURIComponent(id),method:'DELETE',
+    success:function(){ loadAll(); },
+    error:function(){ alert('ลบไม่สำเร็จ'); }
+  });
+}
+
 /* ══════════════════════════════════════════════
    TAB: โต๊ะ
 ══════════════════════════════════════════════ */
@@ -448,6 +537,7 @@ function renderTablesTab(){
       <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
         ${tablesList.filter(t=>t.zone===zone).map(t=>{
           const s=STATUS[t.status]||STATUS.available;
+          const canDelete = t.status==='available';
           return `<div class="rounded-[18px] bg-white p-4 ring-1 ring-[#F0E0D4]">
             <div class="mb-2 flex items-center justify-between">
               <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F7EFE7]">
@@ -456,9 +546,21 @@ function renderTablesTab(){
               <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold ${s.pill}">${s.label}</span>
             </div>
             <div class="space-y-1 text-[11px] text-[#9D7F6A]">
+              <div class="flex justify-between"><span>โซน</span><span class="font-semibold text-[#2C1713]">${t.zone}</span></div>
               <div class="flex justify-between"><span>ที่นั่ง</span><span class="font-semibold text-[#2C1713]">${t.seats} คน</span></div>
               ${t.guests&&t.status!=='available'?`<div class="flex justify-between"><span>ลูกค้า</span><span class="font-semibold text-[#2C1713]">${t.guests} คน</span></div>`:''}
               ${t.openedAt&&t.status!=='available'?`<div class="flex justify-between"><span>เปิดเมื่อ</span><span class="font-semibold text-[#2C1713] tabular-nums">${t.openedAt}</span></div>`:''}
+            </div>
+            <div class="mt-3 flex gap-1.5">
+              <button onclick="showEditTable('${t.id}','${t.zone}',${t.seats})"
+                class="flex flex-1 items-center justify-center gap-1 rounded-lg border border-[#E8D6C6] bg-[#F7F3EF] py-1.5 text-[11px] font-semibold text-[#5A4338] hover:bg-[#EFE8E0]">
+                ✏️ แก้ไข
+              </button>
+              <button onclick="deleteTable('${t.id}','${t.status}')"
+                ${canDelete?'':'disabled title="โต๊ะกำลังใช้งาน"'}
+                class="flex flex-1 items-center justify-center gap-1 rounded-lg border border-red-100 bg-red-50 py-1.5 text-[11px] font-semibold text-red-600 hover:bg-red-100 disabled:opacity-40 disabled:cursor-not-allowed">
+                🗑 ลบ
+              </button>
             </div>
           </div>`;
         }).join('')}
@@ -478,11 +580,7 @@ function renderTablesTab(){
     <div class="flex flex-wrap gap-2 mb-5">${pillsHtml}</div>
     <!-- Zones -->
     ${zonesHtml}
-    <!-- Manage note -->
-    <div class="rounded-[20px] border border-dashed border-[#E8D6C6] bg-white p-5 text-center">
-      <p class="text-[13px] font-semibold text-[#2C1713]">เพิ่ม / แก้ไข / ลบโต๊ะ</p>
-      <p class="mt-1 text-[11px] text-[#9D7F6A]">ใช้ปุ่ม "เพิ่มโต๊ะ" ด้านบน หรือไปที่ <a href="cashier.php" class="text-[#E12717]">แคชเชียร์</a> เพื่อจัดการโต๊ะ</p>
-    </div>`);
+    `);
 }
 
 function showAddTable(){
@@ -509,6 +607,63 @@ function saveNewTable(){
   $.ajax({url:'api/table.php?id='+encodeURIComponent(id),method:'POST',contentType:'application/json',
     data:JSON.stringify({id,zone,seats}),
     success:function(){ loadAll(); },error:function(r){ alert(r.responseJSON?.error||'เพิ่มโต๊ะไม่สำเร็จ'); }
+  });
+}
+
+/* ══ แก้ไขโต๊ะ ══ */
+function showEditTable(id, zone, seats){
+  $('#edit-table-area').remove();
+  const zoneOptions=['A','B','C','D','E'].map(z=>`<option value="${z}"${z===zone?' selected':''}>${z}</option>`).join('');
+  const form=`<div id="edit-table-area" class="mb-5 rounded-[20px] bg-white p-5 ring-2 ring-[#E12717]/25 shadow-[0_4px_20px_rgba(225,39,23,0.08)]">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <p class="text-[10px] font-semibold uppercase tracking-wide text-[#E12717]">กำลังแก้ไข</p>
+        <h4 class="text-[15px] font-bold text-[#2C1713]">โต๊ะ ${id}</h4>
+      </div>
+      <button onclick="$('#edit-table-area').remove()" class="h-8 w-8 flex items-center justify-center rounded-full bg-[#F7EFE7] text-[#5A4338]">✕</button>
+    </div>
+    <div class="flex gap-2 mb-4">
+      <div class="flex-1">
+        <label class="text-[11px] text-[#9D7F6A] mb-1 block">โซน</label>
+        <select id="et-zone" class="w-full rounded-xl border border-[#F0E0D4] px-4 py-2.5 text-[13px] outline-none focus:border-[#E12717]">
+          ${zoneOptions}
+        </select>
+      </div>
+      <div class="w-28">
+        <label class="text-[11px] text-[#9D7F6A] mb-1 block">จำนวนที่นั่ง</label>
+        <input id="et-seats" type="number" min="1" max="20" value="${seats}"
+          class="w-full rounded-xl border border-[#F0E0D4] px-3 py-2.5 text-[13px] outline-none focus:border-[#E12717]"/>
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="$('#edit-table-area').remove()"
+        class="flex-1 rounded-xl border border-[#E8D6C6] bg-[#F7F3EF] py-2.5 text-[13px] font-medium text-[#2C1713]">ยกเลิก</button>
+      <button onclick="saveEditTable('${id}')"
+        class="flex-[1.5] rounded-xl py-2.5 text-[13px] font-bold text-white btn-red shadow-[0_8px_16px_rgba(225,39,23,0.25)]">💾 บันทึกการแก้ไข</button>
+    </div>
+  </div>`;
+
+  if($('#add-table-area').length) $('#add-table-area').after(form);
+  else $('#tab-content').prepend(form);
+  $('html,body').animate({scrollTop:($('#edit-table-area').offset().top-80)},200);
+}
+
+function saveEditTable(id){
+  const zone=$('#et-zone').val(), seats=parseInt($('#et-seats').val())||1;
+  $.ajax({url:'api/table.php?id='+encodeURIComponent(id),method:'PUT',contentType:'application/json',
+    data:JSON.stringify({zone,seats}),
+    success:function(){ $('#edit-table-area').remove(); loadAll(); },
+    error:function(){ alert('บันทึกไม่สำเร็จ'); }
+  });
+}
+
+/* ══ ลบโต๊ะ ══ */
+function deleteTable(id, status){
+  if(status!=='available') return alert('โต๊ะ '+id+' กำลังใช้งานอยู่\nไม่สามารถลบได้จนกว่าจะปิดบิล');
+  if(!confirm('⚠️ ลบโต๊ะ "'+id+'" ออก?\n\nไม่สามารถกู้คืนได้!')) return;
+  $.ajax({url:'api/table.php?id='+encodeURIComponent(id),method:'DELETE',
+    success:function(){ loadAll(); },
+    error:function(r){ alert(r.responseJSON?.error||'ลบไม่สำเร็จ'); }
   });
 }
 
@@ -576,6 +731,21 @@ function renderSettings(){
           <div class="flex-1"><label class="text-[12px] text-[#9D7F6A] mb-1 block">Service Charge (%)</label>
             <input id="s-svc" type="number" min="0" max="30" value="${settings.serviceCharge||0}" class="w-full rounded-xl border border-[#F0E0D4] px-4 py-2.5 text-[13px] outline-none focus:border-[#E12717]"/></div>
         </div>
+        <div class="rounded-xl bg-[#FFF9F5] p-4 ring-1 ring-[#F0E0D4]">
+          <label class="text-[12px] font-semibold text-[#9D7F6A] mb-2 block">📱 รูป QR Code พร้อมเพย์</label>
+          <div class="flex gap-3 items-start">
+            <div id="s-qr-preview-wrap" class="${settings.promptPayQr?'':'hidden'} shrink-0">
+              <img id="s-qr-preview" src="${settings.promptPayQr||''}" alt="QR Preview"
+                class="h-20 w-20 rounded-xl object-contain bg-white ring-1 ring-[#F0E0D4]"
+                onerror="this.closest('div').classList.add('hidden')"/>
+            </div>
+            <div class="flex-1">
+              <input id="s-promptpay" value="${settings.promptPayQr||''}" placeholder="วาง URL ของรูป QR พร้อมเพย์ที่นี่"
+                class="w-full rounded-xl border border-[#F0E0D4] px-4 py-2.5 text-[13px] outline-none focus:border-[#E12717]"/>
+              <p class="mt-1.5 text-[11px] text-[#C4A98A]">นำรูป QR จากแอปธนาคารอัปโหลดไปยัง Google Drive / Imgur แล้ววาง URL ที่นี่</p>
+            </div>
+          </div>
+        </div>
         <button onclick="saveSettings()" class="w-full rounded-xl py-3 text-[13px] font-semibold text-white btn-red">บันทึกการตั้งค่า</button>
       </div>
     </div>`);
@@ -584,7 +754,8 @@ function renderSettings(){
 function saveSettings(){
   const body={restaurantName:$('#s-name').val().trim(),cuisine:$('#s-cuisine').val().trim(),
     openTime:$('#s-open').val().trim(),closeTime:$('#s-close').val().trim(),
-    vatRate:parseFloat($('#s-vat').val())||7,serviceCharge:parseFloat($('#s-svc').val())||0};
+    vatRate:parseFloat($('#s-vat').val())||7,serviceCharge:parseFloat($('#s-svc').val())||0,
+    promptPayQr:$('#s-promptpay').val().trim()};
   $.ajax({url:'api/settings.php',method:'PATCH',contentType:'application/json',data:JSON.stringify(body),
     success:function(){ alert('บันทึกแล้ว ✅'); loadAll(); },error:function(){ alert('บันทึกไม่สำเร็จ'); }
   });
@@ -598,6 +769,14 @@ $(document).on('click','.dash-tab',function(){
   $('.dash-tab').removeClass('tab-active');
   $(this).addClass('tab-active');
   renderTab();
+});
+
+/* ─── QR image live preview in settings ─── */
+$(document).on('input','#s-promptpay',function(){
+  const url=$(this).val().trim();
+  const wrap=$('#s-qr-preview-wrap'), img=$('#s-qr-preview');
+  if(url){ img.attr('src',url); wrap.removeClass('hidden'); }
+  else { wrap.addClass('hidden'); }
 });
 
 loadAll();
