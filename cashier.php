@@ -136,6 +136,15 @@ body{font-family:'Sarabun',sans-serif;background:#F7F3EF;}
 <!-- Hidden print area -->
 <div id="print-area" style="display:none"></div>
 
+<!-- ───── Picker Options Popup (z:63) ───── -->
+<div id="popt-overlay" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm" style="z-index:63;" onclick="closePickerOptModal()"></div>
+<div id="popt-modal" class="hidden fixed inset-x-0 bottom-0 mx-auto" style="z-index:64;max-width:480px;">
+  <div class="rounded-t-[28px] bg-white shadow-[0_-16px_40px_rgba(0,0,0,0.22)]">
+    <div class="flex justify-center pt-3 pb-1"><div class="h-1 w-10 rounded-full bg-[#E8D6C6]"></div></div>
+    <div id="popt-content" class="px-5 pb-5 pt-2" style="max-height:80vh;overflow-y:auto;"></div>
+  </div>
+</div>
+
 <!-- ───── Cashier Menu Picker Panel ───── -->
 <div id="picker-overlay" class="overlay hidden" style="z-index:60;" onclick="closePicker()"></div>
 <div id="picker-panel" class="picker-panel">
@@ -185,7 +194,9 @@ function escHtml(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&l
 
 /* ─── Picker state ─── */
 let pickerTid=null, pickerActiveCat='ทั้งหมด', pickerSearch='';
-let pickerCart={}; // {menuId:{item,qty,note}}
+let pickerCart={}; // {cartKey:{item,qty,note,cartKey,displayName,finalPrice}}
+/* ─── Picker Options Modal state ─── */
+let pickerOptItem=null, pickerOptSel={}; // current item + selected options
 
 /* ─── Status colours ─── */
 const S = {
@@ -783,8 +794,20 @@ $('#picker-panel').on('click','.picker-cat-btn',function(){
 });
 $('#picker-panel').on('click','.picker-add',function(){
   const mid=$(this).data('pid'), item=menuItems.find(m=>m.id===mid); if(!item) return;
-  if(!pickerCart[mid]) pickerCart[mid]={item,qty:0,note:''};
-  pickerCart[mid].qty=Math.min(99,pickerCart[mid].qty+1);
+  if(item.options && item.options.length>0){
+    // has options → open options popup
+    showPickerOptModal(item);
+  } else {
+    // no options → add directly
+    if(!pickerCart[mid]) pickerCart[mid]={item,qty:0,note:'',cartKey:mid,displayName:item.name,finalPrice:item.price};
+    pickerCart[mid].qty=Math.min(99,pickerCart[mid].qty+1);
+    renderPickerMenu(); renderPickerFooter();
+  }
+});
+/* Delete item from footer cart */
+$('#picker-cart-info').on('click','.pfc-del',function(){
+  const key=$(this).data('key');
+  delete pickerCart[key];
   renderPickerMenu(); renderPickerFooter();
 });
 $('#picker-panel').on('click','.picker-inc',function(){
@@ -858,38 +881,56 @@ function renderPickerMenu(){
     return;
   }
   const tagMap={เผ็ด:'bg-red-50 text-red-600',ฮิต:'bg-green-50 text-green-700',โปร:'bg-amber-50 text-amber-700'};
+  const svgPlus=`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>`;
   $('#picker-items').html(filtered.map(m=>{
-    const entry=pickerCart[m.id], qty=entry?entry.qty:0;
+    const hasOpts = m.options && m.options.length>0;
+    // total qty across all variations of this item
+    const totalQty = Object.values(pickerCart).filter(e=>e.item.id===m.id).reduce((s,e)=>s+e.qty,0);
+    const entry = pickerCart[m.id]; // only exists for non-option items
     const tagHtml=m.tag?`<span class="shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${tagMap[m.tag]||''}">${escHtml(m.tag)}</span>`:'';
+
+    // Controls differ: options item shows badge+add; plain item shows +/-
+    let controlHtml;
+    if(hasOpts){
+      controlHtml=`<div class="flex items-center gap-1.5">
+        ${totalQty>0?`<span class="flex h-6 w-6 items-center justify-center rounded-full bg-[#E12717] text-[10px] font-bold text-white tabular-nums">${totalQty}</span>`:''}
+        <button type="button" data-pid="${escHtml(m.id)}"
+          class="picker-add flex h-8 w-8 items-center justify-center rounded-full btn-red text-white shadow-[0_4px_10px_rgba(225,39,23,0.25)]"
+          title="เลือกตัวเลือก">${svgPlus}</button>
+      </div>`;
+    } else if(totalQty>0){
+      controlHtml=`<div class="flex items-center gap-0.5 rounded-full bg-[#F7EFE7] p-0.5">
+        <button type="button" data-pid="${escHtml(m.id)}" class="picker-dec flex h-7 w-7 items-center justify-center rounded-full bg-white text-[#5A4338] text-[14px] font-bold shadow-sm leading-none">−</button>
+        <span class="min-w-[18px] text-center text-[12px] font-bold tabular-nums">${totalQty}</span>
+        <button type="button" data-pid="${escHtml(m.id)}" class="picker-inc flex h-7 w-7 items-center justify-center rounded-full bg-white text-[#5A4338] text-[14px] font-bold shadow-sm leading-none">+</button>
+      </div>`;
+    } else {
+      controlHtml=`<button type="button" data-pid="${escHtml(m.id)}"
+        class="picker-add flex h-8 w-8 items-center justify-center rounded-full btn-red text-white shadow-[0_4px_10px_rgba(225,39,23,0.25)]">${svgPlus}</button>`;
+    }
+
+    const optBadge = hasOpts
+      ? `<span class="shrink-0 rounded-full bg-[#FFF0EE] px-2 py-0.5 text-[9px] font-semibold text-[#E12717]">มีตัวเลือก</span>`
+      : '';
+
     return `<div class="rounded-[18px] bg-white ring-1 ring-[#F0E0D4] overflow-hidden">
       <div class="flex items-center gap-3 px-4 py-3">
         <img src="${escHtml(m.image)||'https://placehold.co/48x48/F7EFE7/9D7F6A?text=🍽'}"
           alt="${escHtml(m.name)}" class="h-12 w-12 shrink-0 rounded-xl object-cover bg-[#F7EFE7]"
           onerror="this.src='https://placehold.co/48x48/F7EFE7/9D7F6A?text=🍽'"/>
         <div class="min-w-0 flex-1">
-          <div class="flex items-center gap-1.5">
+          <div class="flex items-center gap-1.5 flex-wrap">
             <p class="text-[13px] font-semibold text-[#2C1713] truncate">${escHtml(m.name)}</p>
-            ${tagHtml}
+            ${tagHtml}${optBadge}
           </div>
           <p class="text-[11px] text-[#9D7F6A]">${escHtml(m.category)}</p>
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <span class="text-[13px] font-semibold text-[#E12717] tabular-nums">฿${m.price.toLocaleString('th-TH')}</span>
-          ${qty>0?`
-            <div class="flex items-center gap-0.5 rounded-full bg-[#F7EFE7] p-0.5">
-              <button type="button" data-pid="${escHtml(m.id)}" class="picker-dec flex h-7 w-7 items-center justify-center rounded-full bg-white text-[#5A4338] text-[14px] font-bold shadow-sm leading-none">−</button>
-              <span class="min-w-[18px] text-center text-[12px] font-bold tabular-nums">${qty}</span>
-              <button type="button" data-pid="${escHtml(m.id)}" class="picker-inc flex h-7 w-7 items-center justify-center rounded-full bg-white text-[#5A4338] text-[14px] font-bold shadow-sm leading-none">+</button>
-            </div>
-          `:`
-            <button type="button" data-pid="${escHtml(m.id)}"
-              class="picker-add flex h-8 w-8 items-center justify-center rounded-full btn-red text-white shadow-[0_4px_10px_rgba(225,39,23,0.25)]">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-            </button>
-          `}
+          ${controlHtml}
         </div>
       </div>
-      ${qty>0?`<div class="px-4 pb-3">
+      ${(!hasOpts&&totalQty>0)?`<div class="px-4 pb-3">
         <input type="text" data-pid="${escHtml(m.id)}" placeholder="โน้ตพิเศษ เช่น เผ็ดน้อย ไม่ใส่ผักชี..."
           class="picker-note w-full rounded-xl border border-[#F0E0D4] bg-[#FFF9F5] px-3.5 py-2 text-[12px] text-[#2C1713] placeholder:text-[#C4A98A] outline-none focus:border-[#E12717]"
           value="${escHtml(entry?.note||'')}"/>
@@ -905,11 +946,18 @@ function renderPickerFooter(){
     $('#picker-submit-btn').prop('disabled',true).addClass('opacity-40');
     return;
   }
-  const total=items.reduce((s,e)=>s+e.item.price*e.qty,0);
+  const total=items.reduce((s,e)=>s+(e.finalPrice??e.item.price)*e.qty,0);
   $('#picker-cart-items').html(items.map(e=>`
-    <div class="flex justify-between gap-2">
-      <span class="truncate">${escHtml(e.item.name)}${e.note?` <span class="text-[#9D7F6A]">(${escHtml(e.note)})</span>`:''}</span>
-      <span class="tabular-nums shrink-0">×${e.qty}</span>
+    <div class="flex items-center justify-between gap-2">
+      <div class="min-w-0 flex-1">
+        <span class="text-[12px] truncate">${escHtml(e.displayName||e.item.name)}</span>
+        ${e.note?`<span class="text-[10px] text-[#9D7F6A]"> (${escHtml(e.note)})</span>`:''}
+      </div>
+      <div class="flex items-center gap-1.5 shrink-0">
+        <span class="text-[11px] tabular-nums text-[#9D7F6A]">×${e.qty} = ${fmtMoney((e.finalPrice??e.item.price)*e.qty)}</span>
+        <button class="pfc-del flex h-5 w-5 items-center justify-center rounded-full text-[#C8A48B] hover:bg-red-50 hover:text-red-500"
+          data-key="${escHtml(e.cartKey||e.item.id)}">✕</button>
+      </div>
     </div>`).join(''));
   $('#picker-cart-total').text(fmtMoney(total));
   $('#picker-cart-info').removeClass('hidden');
@@ -919,8 +967,11 @@ function renderPickerFooter(){
 function pickerSubmit(){
   if(!pickerTid) return;
   const items=Object.values(pickerCart).filter(e=>e.qty>0).map(e=>({
-    menuId:e.item.id, name:e.item.name, price:e.item.price,
-    quantity:e.qty, note:e.note||null,
+    menuId:e.item.id,
+    name:e.displayName||e.item.name,
+    price:e.finalPrice??e.item.price,
+    quantity:e.qty,
+    note:e.note||null,
   }));
   if(!items.length) return;
   const btn=$('#picker-submit-btn');
@@ -937,6 +988,129 @@ function pickerSubmit(){
       alert('ส่งออเดอร์ไม่สำเร็จ');
     }
   });
+}
+
+/* ══════════════════════════════════════════
+   Picker Options Modal (cashier-side)
+══════════════════════════════════════════ */
+function showPickerOptModal(item){
+  pickerOptItem=item; pickerOptSel={};
+  renderPickerOptContent();
+  $('#popt-overlay,#popt-modal').removeClass('hidden');
+}
+function closePickerOptModal(){
+  $('#popt-overlay,#popt-modal').addClass('hidden');
+  pickerOptItem=null; pickerOptSel={};
+}
+
+function renderPickerOptContent(){
+  if(!pickerOptItem) return;
+  const item=pickerOptItem;
+  const groups=item.options||[];
+  const requiredGroups=groups.filter(g=>g.required).map(g=>g.group);
+  const satisfied=requiredGroups.every(g=>pickerOptSel[g]);
+  const pricedOpt=Object.values(pickerOptSel).find(o=>o.price>0);
+  const price=pricedOpt?pricedOpt.price:item.price;
+
+  const groupsHtml=groups.map(g=>{
+    const btns=g.items.map(o=>{
+      const active=pickerOptSel[g.group]&&pickerOptSel[g.group].id===o.id;
+      return `<button type="button"
+        class="popt-choice rounded-full border-2 px-3.5 py-1.5 text-[12px] font-semibold transition-all
+          ${active?'border-[#E12717] bg-[#FFF0EE] text-[#E12717]':'border-[#F0E0D4] bg-white text-[#5A4338]'}"
+        data-group="${escHtml(g.group)}" data-oid="${escHtml(o.id)}"
+        data-oname="${escHtml(o.name)}" data-oprice="${o.price}">
+        ${escHtml(o.name)}${o.price>0?' ฿'+o.price.toLocaleString('th-TH'):''}
+      </button>`;
+    }).join('');
+    return `<div class="mb-4">
+      <p class="text-[12px] font-semibold text-[#9D7F6A] mb-2">
+        ${escHtml(g.group)}${g.required?'<span class="ml-1 text-red-500">*</span>':''}
+      </p>
+      <div class="flex flex-wrap gap-2">${btns}</div>
+    </div>`;
+  }).join('');
+
+  const pending=!satisfied&&requiredGroups.length>0;
+  const missing=requiredGroups.filter(g=>!pickerOptSel[g]).map(g=>`"${g}"`).join(', ');
+
+  $('#popt-content').html(`
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <p class="text-[10px] text-[#9D7F6A] uppercase tracking-wide">เลือกตัวเลือก</p>
+        <h3 class="text-[16px] font-bold text-[#2C1713]">${escHtml(item.name)}</h3>
+      </div>
+      <button onclick="closePickerOptModal()" class="flex h-8 w-8 items-center justify-center rounded-full bg-[#F7EFE7] text-[#5A4338]">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    ${groupsHtml}
+
+    <div class="mb-4">
+      <label class="text-[12px] font-semibold text-[#9D7F6A] mb-1.5 block">โน้ตพิเศษ (ไม่บังคับ)</label>
+      <input id="popt-note" type="text" placeholder="เช่น ไม่ใส่ผักชี, เผ็ดน้อย..."
+        class="w-full rounded-xl border border-[#F0E0D4] bg-[#FFF9F5] px-4 py-2.5 text-[13px] outline-none focus:border-[#E12717]"/>
+    </div>
+
+    <div class="flex items-center justify-between mb-4">
+      <span class="text-[13px] font-semibold text-[#2C1713]">ราคา</span>
+      <span class="text-[22px] font-bold text-[#E12717] tabular-nums">${price>0?fmtMoney(price):'—'}</span>
+    </div>
+
+    ${pending?`<p class="mb-2 text-center text-[11px] text-amber-600">⚠ กรุณาเลือก ${missing}</p>`:''}
+
+    <button onclick="confirmPickerOpt()" ${pending?'disabled':''}
+      class="w-full rounded-[18px] py-3.5 text-[14px] font-bold text-white btn-red ${pending?'opacity-40':''} shadow-[0_10px_22px_rgba(225,39,23,0.28)]">
+      เพิ่มลงออเดอร์ →
+    </button>
+  `);
+}
+
+/* Option choice buttons inside popup */
+$('#popt-modal').on('click','.popt-choice',function(){
+  const group=$(this).data('group');
+  const oid=String($(this).data('oid'));
+  const oname=String($(this).data('oname'));
+  const oprice=parseFloat($(this).data('oprice'))||0;
+  if(pickerOptSel[group]&&pickerOptSel[group].id===oid){
+    const grp=(pickerOptItem.options||[]).find(g=>g.group===group);
+    if(!grp?.required) delete pickerOptSel[group];
+  } else {
+    pickerOptSel[group]={id:oid,name:oname,price:oprice};
+  }
+  renderPickerOptContent();
+});
+
+function confirmPickerOpt(){
+  if(!pickerOptItem) return;
+  const item=pickerOptItem;
+  const sel={...pickerOptSel};
+  const note=$('#popt-note').val().trim();
+
+  // Build unique cart key from option IDs
+  const ids=Object.values(sel).map(o=>o.id).sort().join('_');
+  const cartKey=ids?item.id+'__'+ids:item.id;
+
+  // Price: use priced option or base price
+  const pricedOpt=Object.values(sel).find(o=>o.price>0);
+  const finalPrice=pricedOpt?pricedOpt.price:item.price;
+
+  // Display name: main priced variant in parens
+  const mainLabel=pricedOpt?pricedOpt.name:'';
+  const displayName=mainLabel?`${item.name} (${mainLabel})`:item.name;
+
+  // Note: free-modifiers (price=0) + free text
+  const mods=Object.entries(sel).filter(([,o])=>o.price===0&&o.name).map(([g,o])=>`[${g}: ${o.name}]`).join(' ');
+  const fullNote=[mods,note].filter(Boolean).join(' ').trim()||'';
+
+  if(!pickerCart[cartKey]){
+    pickerCart[cartKey]={item,qty:0,note:fullNote,cartKey,displayName,finalPrice,selections:sel};
+  }
+  pickerCart[cartKey].qty=Math.min(99,pickerCart[cartKey].qty+1);
+
+  closePickerOptModal();
+  renderPickerMenu(); renderPickerFooter();
 }
 
 /* ─── Init + auto-poll every 30s ─── */
