@@ -36,6 +36,7 @@ body{padding-bottom:env(safe-area-inset-bottom);}
 <div class="border-b border-[#F0E0D4] bg-white px-2 overflow-x-auto">
   <div class="flex gap-0 min-w-max">
     <?php
+    $user = getCurrentUser();
     $tabs = [
       ['id'=>'overview',  'label'=>'ภาพรวม'],
       ['id'=>'revenue',   'label'=>'รายรับ'],
@@ -45,6 +46,9 @@ body{padding-bottom:env(safe-area-inset-bottom);}
       ['id'=>'pos',       'label'=>'POS'],
       ['id'=>'settings',  'label'=>'ตั้งค่า'],
     ];
+    if ($user['role'] === 'owner') {
+      $tabs[] = ['id'=>'users', 'label'=>'👥 ผู้ใช้งาน'];
+    }
     foreach($tabs as $i => $tab):
     ?>
     <button data-tab="<?= $tab['id'] ?>"
@@ -87,7 +91,8 @@ function loadAll(){
 function renderTab(){
   const fns = {
     overview: renderOverview, revenue: renderRevenue, history: renderHistory,
-    menu: renderMenuTab, tables: renderTablesTab, pos: renderPos, settings: renderSettings
+    menu: renderMenuTab, tables: renderTablesTab, pos: renderPos, settings: renderSettings,
+    users: renderUsers
   };
   if(fns[currentTab]) fns[currentTab]();
 }
@@ -713,6 +718,121 @@ function renderPos(){
         <span class="mt-3 inline-block rounded-full bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-600">Coming soon</span>
       </div>
     </div>`);
+}
+
+/* ══════════════════════════════════════════════
+   TAB: ผู้ใช้งาน (owner only)
+══════════════════════════════════════════════ */
+function renderUsers(){
+  $.getJSON('api/users.php', function(users){
+    const rows = users.map(u=>`
+      <div class="flex items-center justify-between gap-3 rounded-[16px] bg-white p-4 ring-1 ring-[#F0E0D4]">
+        <div class="flex-1 min-w-0">
+          <p class="text-[13px] font-semibold text-[#2C1713] truncate">${escHtml(u.name)}</p>
+          <p class="mt-0.5 text-[11px] text-[#9D7F6A] truncate">${escHtml(u.username)}</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="rounded-full px-2.5 py-1 text-[10px] font-bold text-white
+            ${u.role==='owner'?'bg-red-600':u.role==='manager'?'bg-amber-600':'bg-blue-600'}">
+            ${u.role==='owner'?'เจ้าของ':u.role==='manager'?'ผู้จัดการ':'พนักงาน'}
+          </span>
+          ${u.is_active?'<span class="text-[10px] text-green-600">✓ เปิด</span>':'<span class="text-[10px] text-red-600">✗ ปิด</span>'}
+          <button class="text-[11px] text-[#9D7F6A] hover:text-[#E12717]" onclick="editUserModal('${u.id}','${escHtml(u.name)}','${u.role}')">✏️</button>
+          <button class="text-[11px] text-[#C8A48B] hover:text-red-500" onclick="deleteUserConfirm('${u.id}','${escHtml(u.name)}')">✕</button>
+        </div>
+      </div>`).join('');
+
+    $('#tab-content').html(`
+      <div>
+        <button onclick="newUserModal()" class="mb-4 flex items-center gap-2 rounded-[16px] btn-red px-4 py-2.5 text-[12px] font-semibold text-white">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          เพิ่มผู้ใช้งานใหม่
+        </button>
+        <div class="space-y-2">
+          ${rows || '<p class="text-[12px] text-[#9D7F6A] py-8 text-center">ยังไม่มีผู้ใช้งาน</p>'}
+        </div>
+      </div>
+    `);
+  }).fail(()=>alert('โหลดผู้ใช้งานไม่สำเร็จ'));
+}
+
+/* ──── User modals ──── */
+function newUserModal(){
+  const html = \`
+    <div class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" id="umodal-overlay">
+      <div class="bg-white rounded-[24px] w-full max-w-sm p-6 shadow-xl">
+        <h3 class="text-[15px] font-semibold text-[#2C1713] mb-4">เพิ่มผู้ใช้งานใหม่</h3>
+        <div class="space-y-3 mb-5">
+          <input id="uin-user" type="text" placeholder="Username" class="w-full rounded-[12px] border border-[#F0E0D4] px-3.5 py-2.5 text-[12px] outline-none focus:border-[#E12717]"/>
+          <input id="uin-pass" type="password" placeholder="Password" class="w-full rounded-[12px] border border-[#F0E0D4] px-3.5 py-2.5 text-[12px] outline-none focus:border-[#E12717]"/>
+          <input id="uin-name" type="text" placeholder="ชื่อแสดง" class="w-full rounded-[12px] border border-[#F0E0D4] px-3.5 py-2.5 text-[12px] outline-none focus:border-[#E12717]"/>
+          <select id="uin-role" class="w-full rounded-[12px] border border-[#F0E0D4] px-3.5 py-2.5 text-[12px] outline-none focus:border-[#E12717]">
+            <option value="staff">พนักงาน</option>
+            <option value="manager">ผู้จัดการ</option>
+            <option value="owner">เจ้าของ</option>
+          </select>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="$('#umodal-overlay').remove()" class="flex-1 rounded-[12px] border border-[#E8D6C6] bg-white py-2.5 text-[12px] font-medium text-[#2C1713]">ยกเลิก</button>
+          <button onclick="saveNewUser()" class="flex-1 rounded-[12px] btn-red py-2.5 text-[12px] font-bold text-white">สร้าง</button>
+        </div>
+      </div>
+    </div>
+  \`;
+  $('body').append(html);
+  $('#uin-user').focus();
+}
+
+function editUserModal(id, name, role){
+  const html = \`
+    <div class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" id="umodal-overlay">
+      <div class="bg-white rounded-[24px] w-full max-w-sm p-6 shadow-xl">
+        <h3 class="text-[15px] font-semibold text-[#2C1713] mb-4">แก้ไขผู้ใช้งาน</h3>
+        <div class="space-y-3 mb-5">
+          <input id="uedit-name" type="text" value="\${escHtml(name)}" placeholder="ชื่อแสดง" class="w-full rounded-[12px] border border-[#F0E0D4] px-3.5 py-2.5 text-[12px] outline-none focus:border-[#E12717]"/>
+          <select id="uedit-role" class="w-full rounded-[12px] border border-[#F0E0D4] px-3.5 py-2.5 text-[12px] outline-none focus:border-[#E12717]">
+            <option value="staff" \${role==='staff'?'selected':''}>พนักงาน</option>
+            <option value="manager" \${role==='manager'?'selected':''}>ผู้จัดการ</option>
+            <option value="owner" \${role==='owner'?'selected':''}>เจ้าของ</option>
+          </select>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="$('#umodal-overlay').remove()" class="flex-1 rounded-[12px] border border-[#E8D6C6] bg-white py-2.5 text-[12px] font-medium text-[#2C1713]">ยกเลิก</button>
+          <button onclick="saveEditUser('\${id}')" class="flex-1 rounded-[12px] btn-red py-2.5 text-[12px] font-bold text-white">บันทึก</button>
+        </div>
+      </div>
+    </div>
+  \`;
+  $('body').append(html);
+  $('#uedit-name').focus();
+}
+
+function saveNewUser(){
+  const user = $('#uin-user').val().trim(), pass = $('#uin-pass').val(), name = $('#uin-name').val().trim(), role = $('#uin-role').val();
+  if(!user || !pass || !name) return alert('กรุณากรอกทุกช่อง');
+  $.ajax({url:'api/users.php', method:'POST', contentType:'application/json',
+    data: JSON.stringify({username:user, password:pass, name, role}),
+    success: ()=>{ $('#umodal-overlay').remove(); renderUsers(); },
+    error: ()=>alert('สร้างผู้ใช้งานไม่สำเร็จ')
+  });
+}
+
+function saveEditUser(id){
+  const name = $('#uedit-name').val().trim(), role = $('#uedit-role').val();
+  if(!name) return alert('กรุณากรอกชื่อแสดง');
+  $.ajax({url:'api/users.php?id='+encodeURIComponent(id), method:'PATCH', contentType:'application/json',
+    data: JSON.stringify({name, role}),
+    success: ()=>{ $('#umodal-overlay').remove(); renderUsers(); },
+    error: ()=>alert('แก้ไขไม่สำเร็จ')
+  });
+}
+
+function deleteUserConfirm(id, name){
+  if(!confirm('ลบ '+name+' ออกจากระบบ?')) return;
+  $.ajax({url:'api/users.php?id='+encodeURIComponent(id), method:'DELETE',
+    success: ()=>renderUsers(),
+    error: ()=>alert('ลบไม่สำเร็จ')
+  });
 }
 
 /* ══════════════════════════════════════════════
