@@ -361,7 +361,7 @@ function renderMenuTab(){
               <span class="rounded-lg bg-[#F7EFE7] px-2 py-0.5 text-[10px] font-medium text-[#7C5B47]">${item.category}</span>
               <span class="text-[14px] font-bold text-[#E12717] tabular-nums">฿${item.price.toLocaleString()}</span>
             </div>
-            <!-- ✏️ Edit + 🗑 Delete buttons -->
+            <!-- ✏️ Edit + 🗑 Delete + ⚙️ Options buttons -->
             <div class="mt-2.5 flex gap-1.5">
               <button onclick="showEditMenu(decodeURIComponent('${itemJson}'))"
                 class="flex flex-1 items-center justify-center gap-1 rounded-lg border border-[#E8D6C6] bg-[#F7F3EF] py-1.5 text-[11px] font-semibold text-[#5A4338] hover:bg-[#EFE8E0]">
@@ -372,6 +372,11 @@ function renderMenuTab(){
                 🗑 ลบ
               </button>
             </div>
+            <button onclick="toggleOptions('${item.id}')"
+              class="mt-1.5 w-full flex items-center justify-center gap-1 rounded-lg border border-[#E8D6C6] bg-white py-1.5 text-[11px] font-semibold text-[#7C5B47] hover:bg-[#FFF9F5]">
+              ⚙️ ตัวเลือก (เผ็ด/โปรตีน/เพิ่มเติม)
+            </button>
+            <div id="opts-${item.id}" class="hidden mt-2 rounded-xl bg-[#FFF9F5] p-3 ring-1 ring-[#F0E0D4]"></div>
           </div>
         </div>`;
       }).join('');
@@ -770,6 +775,82 @@ $(document).on('click','.dash-tab',function(){
   $(this).addClass('tab-active');
   renderTab();
 });
+
+/* ══════════════════════════════════════════════
+   ตัวเลือกเมนู (Options / Variants)
+══════════════════════════════════════════════ */
+function toggleOptions(menuId){
+  const box=$('#opts-'+menuId);
+  if(!box.hasClass('hidden')){ box.addClass('hidden'); return; }
+  box.removeClass('hidden').html('<p class="text-[11px] text-[#9D7F6A]">กำลังโหลด...</p>');
+  $.getJSON('api/menu_options.php?menu_id='+encodeURIComponent(menuId)).then(function(groups){
+    renderOptionsBox(menuId, groups);
+  });
+}
+
+function renderOptionsBox(menuId, groups){
+  const box=$('#opts-'+menuId);
+  const groupsHtml = groups.length ? groups.map(g=>`
+    <div class="mb-3">
+      <div class="flex items-center justify-between mb-1.5">
+        <span class="text-[11px] font-bold text-[#5A4338]">${escDash(g.group)}${g.required?' <span class="text-red-500">*</span>':''}</span>
+      </div>
+      <div class="flex flex-wrap gap-1.5">
+        ${g.items.map(o=>`
+          <span class="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[10px] font-medium text-[#5A4338] ring-1 ring-[#E8D6C6]">
+            ${escDash(o.name)}${o.price>0?' ฿'+o.price:''}
+            <button type="button" onclick="deleteOption('${o.id}','${menuId}')"
+              class="ml-0.5 text-[#C8A48B] hover:text-red-500">✕</button>
+          </span>`).join('')}
+      </div>
+    </div>`).join('')
+    : '<p class="text-[11px] text-[#C4A98A] mb-3">ยังไม่มีตัวเลือก</p>';
+
+  box.html(`
+    ${groupsHtml}
+    <div class="border-t border-[#F0E0D4] pt-3 mt-1">
+      <p class="text-[11px] font-bold text-[#9D7F6A] mb-2">+ เพิ่มตัวเลือกใหม่</p>
+      <div class="flex flex-wrap gap-1.5 mb-1.5">
+        <input id="on-group-${menuId}" placeholder="กลุ่ม เช่น โปรตีน, ระดับเผ็ด"
+          class="rounded-lg border border-[#F0E0D4] px-2.5 py-1.5 text-[11px] outline-none focus:border-[#E12717]" style="flex:1;min-width:120px"/>
+        <input id="on-name-${menuId}" placeholder="ชื่อ เช่น หมู, เผ็ดน้อย"
+          class="rounded-lg border border-[#F0E0D4] px-2.5 py-1.5 text-[11px] outline-none focus:border-[#E12717]" style="flex:1;min-width:100px"/>
+        <input id="on-price-${menuId}" type="number" min="0" placeholder="ราคา (0=ฟรี)"
+          class="rounded-lg border border-[#F0E0D4] px-2.5 py-1.5 text-[11px] outline-none w-20"/>
+      </div>
+      <div class="flex items-center gap-2 mb-2">
+        <label class="flex items-center gap-1 text-[11px] text-[#7C5B47] cursor-pointer">
+          <input type="checkbox" id="on-req-${menuId}" class="rounded"/> บังคับเลือก
+        </label>
+      </div>
+      <button onclick="saveOption('${menuId}')"
+        class="rounded-lg btn-red px-3 py-1.5 text-[11px] font-semibold text-white">บันทึก</button>
+    </div>
+  `);
+}
+
+function escDash(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function saveOption(menuId){
+  const group=$('#on-group-'+menuId).val().trim();
+  const name=$('#on-name-'+menuId).val().trim();
+  const price=parseFloat($('#on-price-'+menuId).val())||0;
+  const required=$('#on-req-'+menuId).is(':checked')?1:0;
+  if(!group||!name) return alert('กรุณากรอกกลุ่มและชื่อตัวเลือก');
+  $.ajax({url:'api/menu_options.php',method:'POST',contentType:'application/json',
+    data:JSON.stringify({menuId,groupName:group,optName:name,price,required}),
+    success:function(){ $.getJSON('api/menu_options.php?menu_id='+encodeURIComponent(menuId)).then(g=>renderOptionsBox(menuId,g)); },
+    error:function(){ alert('บันทึกไม่สำเร็จ'); }
+  });
+}
+
+function deleteOption(optId, menuId){
+  if(!confirm('ลบตัวเลือกนี้?')) return;
+  $.ajax({url:'api/menu_options.php?id='+encodeURIComponent(optId),method:'DELETE',
+    success:function(){ $.getJSON('api/menu_options.php?menu_id='+encodeURIComponent(menuId)).then(g=>renderOptionsBox(menuId,g)); },
+    error:function(){ alert('ลบไม่สำเร็จ'); }
+  });
+}
 
 /* ─── QR image live preview in settings ─── */
 $(document).on('input','#s-promptpay',function(){

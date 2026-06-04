@@ -15,6 +15,7 @@ if ($method === 'GET') {
         'category'    => $r['category'],
         'tag'         => $r['tag'],
         'image'       => $r['image'] ?? '',
+        'options'     => get_menu_options($r['id']),
     ], $rows));
 }
 

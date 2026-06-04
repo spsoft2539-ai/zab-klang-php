@@ -35,12 +35,13 @@ function fmtMoney(n){ return '฿'+Number(n).toLocaleString('th-TH'); }
 function itemCount(){ return cart.items.reduce((s,i)=>s+i.quantity,0); }
 function subtotal(){ return cart.items.reduce((s,i)=>s+i.price*i.quantity,0); }
 
-function increase(menuId){
-  cart.items = cart.items.map(i=>i.menuId===menuId?{...i,quantity:Math.min(99,i.quantity+1)}:i);
+function cartKeyOf(i){ return i.cartKey || i.menuId; }
+function increase(key){
+  cart.items = cart.items.map(i=>cartKeyOf(i)===key?{...i,quantity:Math.min(99,i.quantity+1)}:i);
   saveCart(); renderCart();
 }
-function decrease(menuId){
-  cart.items = cart.items.map(i=>i.menuId===menuId?{...i,quantity:i.quantity-1}:i).filter(i=>i.quantity>0);
+function decrease(key){
+  cart.items = cart.items.map(i=>cartKeyOf(i)===key?{...i,quantity:i.quantity-1}:i).filter(i=>i.quantity>0);
   saveCart(); renderCart();
 }
 
@@ -88,29 +89,34 @@ function renderCart(){
   const backHref = cart.tableId ? `menu.php?table=${encodeURIComponent(cart.tableId)}` : 'index.php';
   const now = new Date().toLocaleString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Asia/Bangkok'});
 
-  const itemsHtml = cart.items.map(item=>`
-    <li data-id="${item.menuId}">
+  const itemsHtml = cart.items.map(item=>{
+    const key = cartKeyOf(item);
+    return `<li data-cartkey="${key}">
       <div class="flex items-start justify-between gap-3">
-        <p class="text-[13px] font-medium leading-snug text-[#2C1713]">${item.name}</p>
+        <div class="min-w-0">
+          <p class="text-[13px] font-medium leading-snug text-[#2C1713]">${item.name}</p>
+          ${item.note?`<p class="mt-0.5 text-[11px] text-[#9D7F6A]">📝 ${item.note}</p>`:''}
+        </div>
         <span class="shrink-0 text-[13px] font-semibold tabular-nums text-[#2C1713]">${fmtMoney(item.price*item.quantity)}</span>
       </div>
       <div class="mt-2 flex items-center justify-between">
         <span class="text-[11px] tabular-nums text-[#9D7F6A]">${fmtMoney(item.price)} × ${item.quantity}</span>
         <div class="flex items-center gap-1 rounded-full bg-white px-1 py-1 ring-1 ring-[#E5D2BC]">
-          <button type="button" data-action="dec" data-id="${item.menuId}"
+          <button type="button" data-action="dec" data-cartkey="${key}"
             class="flex h-6 w-6 items-center justify-center rounded-full text-[#5A4338] active:bg-[#FBF4ED]">
             ${item.quantity===1
               ? '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>'
               : '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>'}
           </button>
           <span class="min-w-[16px] text-center text-[11px] font-semibold tabular-nums text-[#2C1713]">${item.quantity}</span>
-          <button type="button" data-action="inc" data-id="${item.menuId}"
+          <button type="button" data-action="inc" data-cartkey="${key}"
             class="flex h-6 w-6 items-center justify-center rounded-full bg-[#E12717] text-white shadow-[0_2px_5px_rgba(225,39,23,0.32)]">
             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
           </button>
         </div>
       </div>
-    </li>`).join('');
+    </li>`;
+  }).join('');
 
   $('#page-root').html(`
     <main class="mx-auto flex min-h-screen max-w-sm flex-col bg-[#FFF9F5]">
@@ -201,9 +207,9 @@ function renderCart(){
 
   // Bind events
   $(document).off('click','[data-action]').on('click','[data-action]',function(){
-    const id=$(this).data('id'), action=$(this).data('action');
-    if(action==='inc') increase(id);
-    else decrease(id);
+    const key=$(this).data('cartkey'), action=$(this).data('action');
+    if(action==='inc') increase(key);
+    else decrease(key);
   });
   $('#submitBtn').off('click').on('click', submitOrder);
 }
@@ -215,7 +221,7 @@ function submitOrder(){
     url:'api/orders.php', method:'POST', contentType:'application/json',
     data: JSON.stringify({
       tableId: cart.tableId,
-      items: cart.items.map(i=>({menuId:i.menuId,name:i.name,price:i.price,quantity:i.quantity}))
+      items: cart.items.map(i=>({menuId:i.menuId,name:i.name,price:i.price,quantity:i.quantity,note:i.note||null}))
     }),
     success: function(order){
       clearCart();

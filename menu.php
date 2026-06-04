@@ -75,6 +75,8 @@ let menuItems = [];
 let cart = [];
 let activeCategory = 'ทั้งหมด';
 let searchQuery = '';
+let modalItem = null;
+let modalSel  = {}; // {groupName: {id, name, price}}
 
 // ─── Cart helpers ───────────────────────────────
 function readCart() {
@@ -93,14 +95,120 @@ function cartCount() { return cart.reduce((s,i)=>s+i.quantity,0); }
 function cartSubtotal() { return cart.reduce((s,i)=>s+i.price*i.quantity,0); }
 function cartTotal() { return cartSubtotal() + Math.round(cartSubtotal()*0.07); }
 
-function addItem(item) {
-  const ex = cart.find(c=>c.menuId===item.id);
-  if (ex) { ex.quantity = Math.min(99, ex.quantity+1); }
-  else { cart.push({menuId:item.id,name:item.name,price:item.price,quantity:1,image:item.image,category:item.category}); }
-  saveCart();
-  renderMenu();
-  renderCartBar();
+function buildCartKey(menuId, sel) {
+  const ids = Object.values(sel).map(o=>o.id).sort().join('_');
+  return ids ? menuId + '__' + ids : menuId;
 }
+
+function tryAddItem(item) {
+  if (item.options && item.options.length > 0) { showOptionsModal(item); }
+  else { commitToCart(item.id, item.name, item.price, {}, ''); }
+}
+
+function commitToCart(menuId, baseName, basePrice, sel, freeNote) {
+  const cartKey = buildCartKey(menuId, sel);
+  // Price: use the priced option (price>0), else base
+  const pricedOpt = Object.values(sel).find(o=>o.price>0);
+  const price = pricedOpt ? pricedOpt.price : basePrice;
+  // Name: append main variant (priced) in parens
+  const mainLabel = pricedOpt ? pricedOpt.name : '';
+  const name = mainLabel ? `${baseName} (${mainLabel})` : baseName;
+  // Note: modifiers (price=0) + free text
+  const mods = Object.entries(sel).filter(([,o])=>o.price===0&&o.name).map(([g,o])=>`[${g}: ${o.name}]`).join(' ');
+  const note = [mods, freeNote].filter(Boolean).join(' ').trim() || null;
+
+  const ex = cart.find(c=>c.cartKey===cartKey);
+  if (ex) { ex.quantity = Math.min(99, ex.quantity+1); }
+  else { cart.push({cartKey,menuId,name,price,quantity:1,note,image:'',category:''}); }
+  saveCart(); renderMenu(); renderCartBar();
+}
+
+/* ─── Options Modal ─── */
+function showOptionsModal(item) {
+  modalItem = item;
+  modalSel  = {};
+  renderModalContent();
+  $('#opt-overlay,#opt-modal').removeClass('hidden');
+}
+function closeOptionsModal() {
+  $('#opt-overlay,#opt-modal').addClass('hidden');
+  modalItem = null; modalSel = {};
+}
+
+function renderModalContent() {
+  if (!modalItem) return;
+  const item = modalItem;
+  const groups = item.options || [];
+
+  const groupsHtml = groups.map(g => {
+    const btns = g.items.map(o => {
+      const sel = modalSel[g.group];
+      const active = sel && sel.id === o.id;
+      return `<button type="button"
+        class="opt-choice-btn rounded-full border-2 px-3.5 py-1.5 text-[12px] font-semibold transition-all ${active?'border-[#E12717] bg-[#FFF0EE] text-[#E12717]':'border-[#F0E0D4] bg-white text-[#5A4338]'}"
+        data-group="${escHtml(g.group)}" data-opt-id="${escHtml(o.id)}" data-opt-name="${escHtml(o.name)}" data-opt-price="${o.price}">
+        ${escHtml(o.name)}${o.price>0?' ฿'+o.price.toLocaleString():''}
+      </button>`;
+    }).join('');
+    return `<div class="mb-4">
+      <p class="text-[12px] font-semibold text-[#9D7F6A] mb-2">
+        ${escHtml(g.group)}${g.required?'<span class="ml-1 text-red-500">*</span>':''}
+      </p>
+      <div class="flex flex-wrap gap-2">${btns}</div>
+    </div>`;
+  }).join('');
+
+  // Calc current price
+  const pricedOpt = Object.values(modalSel).find(o=>o.price>0);
+  const price = pricedOpt ? pricedOpt.price : item.price;
+
+  // Required groups satisfied?
+  const requiredGroups = groups.filter(g=>g.required).map(g=>g.group);
+  const satisfied = requiredGroups.every(g=>modalSel[g]);
+  const noteVal = escHtml($('#opt-note').val()||'');
+
+  $('#opt-content').html(`
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-[16px] font-bold text-[#2C1713]">${escHtml(item.name)}</h3>
+      <button onclick="closeOptionsModal()" class="flex h-8 w-8 items-center justify-center rounded-full bg-[#F7EFE7] text-[#5A4338]">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    ${groupsHtml}
+
+    <div class="mb-4">
+      <label class="text-[12px] font-semibold text-[#9D7F6A] mb-1.5 block">โน้ตพิเศษ (ไม่บังคับ)</label>
+      <input id="opt-note" type="text" value="${noteVal}"
+        placeholder="เช่น ไม่ใส่ผักชี, แพ้นัตฯ..."
+        class="w-full rounded-xl border border-[#F0E0D4] bg-[#FFF9F5] px-4 py-2.5 text-[13px] text-[#2C1713] placeholder:text-[#C4A98A] outline-none focus:border-[#E12717]"/>
+    </div>
+
+    <div class="flex items-center justify-between mb-4">
+      <span class="text-[13px] font-semibold text-[#2C1713]">ราคา</span>
+      <span class="text-[22px] font-bold text-[#E12717] tabular-nums">${price>0?'฿'+price.toLocaleString():'—'}</span>
+    </div>
+
+    ${!satisfied && requiredGroups.length>0 ? `<p class="mb-2 text-center text-[11px] text-amber-600">⚠ กรุณาเลือก ${requiredGroups.filter(g=>!modalSel[g]).join(' และ ')} ก่อน</p>`:''}
+
+    <button onclick="confirmModalAdd()" ${!satisfied&&requiredGroups.length>0?'disabled':''}
+      class="w-full rounded-[18px] py-3.5 text-[13px] font-bold text-white transition-opacity ${!satisfied&&requiredGroups.length>0?'opacity-40 btn-red cursor-not-allowed':'btn-red'}"
+      style="box-shadow:0 10px 22px rgba(225,39,23,0.28)">
+      เพิ่มลงตะกร้า →
+    </button>
+  `);
+}
+
+function confirmModalAdd() {
+  if (!modalItem) return;
+  const note = $('#opt-note').val().trim();
+  const requiredGroups = (modalItem.options||[]).filter(g=>g.required).map(g=>g.group);
+  if (!requiredGroups.every(g=>modalSel[g])) return;
+  commitToCart(modalItem.id, modalItem.name, modalItem.price, {...modalSel}, note);
+  closeOptionsModal();
+}
+
+function escHtml(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 // ─── Render helpers ──────────────────────────────
 function fmtMoney(n) { return '฿' + n.toLocaleString('th-TH'); }
@@ -139,8 +247,7 @@ function renderMenu() {
   }
 
   $('#menu-list').html(filtered.map(item=>{
-    const entry = cart.find(c=>c.menuId===item.id);
-    const qty = entry ? entry.quantity : 0;
+    const qty = cart.filter(c=>c.menuId===item.id).reduce((s,c)=>s+c.quantity,0);
     const tagMap = {เผ็ด:'tag-spicy',ฮิต:'tag-hit',โปร:'tag-pro'};
     const tagHtml = item.tag ? `<span class="shrink-0 rounded-full px-2 py-1 text-[10px] font-medium ${tagMap[item.tag]||''}">${item.tag}</span>` : '';
     const btnInner = qty>0
@@ -202,7 +309,23 @@ function renderCartBar() {
 $(document).on('click', '.add-btn', function(){
   const id = $(this).data('id');
   const item = menuItems.find(m=>m.id===id);
-  if (item) addItem(item);
+  if (item) tryAddItem(item);
+});
+/* Option choice buttons (inside modal) */
+$(document).on('click', '.opt-choice-btn', function(){
+  const group = $(this).data('group');
+  const optId = $(this).data('opt-id');
+  const optName = String($(this).data('opt-name'));
+  const optPrice = parseFloat($(this).data('opt-price'))||0;
+  if (modalSel[group] && modalSel[group].id === optId) {
+    // deselect if not required
+    const grp = (modalItem.options||[]).find(g=>g.group===group);
+    if (!grp?.required) delete modalSel[group];
+  } else {
+    modalSel[group] = {id:optId, name:optName, price:optPrice};
+  }
+  renderModalContent();
+  // Preserve typed note
 });
 $(document).on('click', '[data-cat]', function(){
   activeCategory = $(this).data('cat');
@@ -233,5 +356,15 @@ Promise.all([
   $('#menu-list').html('<div class="py-10 text-center text-red-500">โหลดเมนูไม่สำเร็จ กรุณาลองใหม่</div>');
 });
 </script>
+<!-- Options Modal -->
+<div id="opt-overlay" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onclick="closeOptionsModal()"></div>
+<div id="opt-modal" class="hidden fixed inset-x-0 bottom-0 z-50 mx-auto max-w-sm">
+  <div class="rounded-t-[28px] bg-white shadow-[0_-16px_40px_rgba(0,0,0,0.22)]">
+    <div class="flex justify-center pt-3 pb-1">
+      <div class="h-1 w-10 rounded-full bg-[#E8D6C6]"></div>
+    </div>
+    <div id="opt-content" class="px-5 pb-5 pt-2" style="max-height:82vh;overflow-y:auto;"></div>
+  </div>
+</div>
 </body>
 </html>

@@ -108,6 +108,29 @@ function format_table(array $r): array {
     ];
 }
 
+/** Fetch options for a menu item, grouped by group_name */
+function get_menu_options(string $menu_id): array {
+    $stmt = db()->prepare(
+        'SELECT * FROM menu_options WHERE menu_id = ? ORDER BY group_name, sort_order, id'
+    );
+    $stmt->bind_param('s', $menu_id);
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $groups = [];
+    foreach ($rows as $r) {
+        $g = $r['group_name'];
+        if (!isset($groups[$g])) {
+            $groups[$g] = ['group' => $g, 'required' => (bool)$r['required'], 'items' => []];
+        }
+        $groups[$g]['items'][] = [
+            'id'    => $r['id'],
+            'name'  => $r['opt_name'],
+            'price' => (float)$r['price'],
+        ];
+    }
+    return array_values($groups);
+}
+
 /** Format an order row as API object */
 function format_order(array $r): array {
     return [
