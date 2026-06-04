@@ -83,6 +83,9 @@ function toggleSound(){
 function playKitchenAlert(){
   if(!soundEnabled || !audioCtx) return;
   try{
+    // Resume context if browser suspended it (common after page is idle)
+    if(audioCtx.state==='suspended') audioCtx.resume();
+    if(audioCtx.state==='suspended') return; // still suspended — skip
     const play=(freq,start,dur)=>{
       const osc=audioCtx.createOscillator(), gain=audioCtx.createGain();
       osc.connect(gain); gain.connect(audioCtx.destination);
