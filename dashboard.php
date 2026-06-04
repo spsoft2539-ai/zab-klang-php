@@ -777,157 +777,194 @@ $(document).on('click','.dash-tab',function(){
 });
 
 /* ══════════════════════════════════════════════
-   ตัวเลือกเมนู (Options / Variants)
+   ตัวเลือกเมนู (Options / Variants) — Group UI
 ══════════════════════════════════════════════ */
+const _optCache = {}; // {optId:{group,name,price,required,menuId}}
+
+function reloadOpts(menuId){
+  return $.getJSON('api/menu_options.php?menu_id='+encodeURIComponent(menuId))
+          .then(g=>renderOptionsBox(menuId,g));
+}
+
 function toggleOptions(menuId){
   const box=$('#opts-'+menuId);
   if(!box.hasClass('hidden')){ box.addClass('hidden'); return; }
-  box.removeClass('hidden').html('<p class="text-[11px] text-[#9D7F6A]">กำลังโหลด...</p>');
-  $.getJSON('api/menu_options.php?menu_id='+encodeURIComponent(menuId)).then(function(groups){
-    renderOptionsBox(menuId, groups);
-  });
-}
-
-/* ── cache option data by id (avoid unsafe inline string escaping) ── */
-const _optCache = {};
-
-function renderOptionsBox(menuId, groups){
-  const box=$('#opts-'+menuId);
-
-  // Cache every option for safe reference by id
-  groups.forEach(g=>g.items.forEach(o=>{ _optCache[o.id]={group:g.group,name:o.name,price:o.price,required:g.required?1:0,menuId}; }));
-
-  const groupsHtml = groups.length ? groups.map(g=>`
-    <div class="mb-3">
-      <span class="text-[11px] font-bold text-[#5A4338]">
-        ${escDash(g.group)}${g.required?' <span class="text-red-400 ml-0.5">*</span>':''}
-      </span>
-      <div class="flex flex-wrap gap-1.5 mt-1.5">
-        ${g.items.map(o=>`
-          <span id="opill-${o.id}"
-            class="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[10px] font-medium text-[#5A4338] ring-1 ring-[#E8D6C6] transition-all">
-            ${escDash(o.name)}${o.price>0?` <span class="text-[#E12717]">฿${o.price}</span>`:''}
-            <button type="button" onclick="showEditOption('${o.id}')"
-              title="แก้ไข" class="ml-0.5 text-[#9D7F6A] hover:text-[#E12717] leading-none">✏️</button>
-            <button type="button" onclick="deleteOption('${o.id}')"
-              title="ลบ" class="text-[#C8A48B] hover:text-red-500 leading-none">✕</button>
-          </span>`).join('')}
-      </div>
-    </div>`).join('')
-    : '<p class="text-[11px] text-[#C4A98A] mb-3">ยังไม่มีตัวเลือก — เพิ่มด้านล่างได้เลย</p>';
-
-  box.html(`
-    <div class="opt-list">${groupsHtml}</div>
-    <div class="opt-form-area">${renderAddOptForm(menuId)}</div>
-  `);
-}
-
-function renderAddOptForm(menuId){
-  return `<div class="border-t border-[#F0E0D4] pt-3 mt-1">
-    <p class="text-[11px] font-bold text-[#9D7F6A] mb-2">+ เพิ่มตัวเลือกใหม่</p>
-    <div class="flex flex-wrap gap-1.5 mb-1.5">
-      <input id="on-group-${menuId}" placeholder="กลุ่ม เช่น โปรตีน, ระดับเผ็ด"
-        class="rounded-lg border border-[#F0E0D4] px-2.5 py-1.5 text-[11px] outline-none focus:border-[#E12717]" style="flex:1;min-width:120px"/>
-      <input id="on-name-${menuId}" placeholder="ชื่อ เช่น หมู, เผ็ดน้อย"
-        class="rounded-lg border border-[#F0E0D4] px-2.5 py-1.5 text-[11px] outline-none focus:border-[#E12717]" style="flex:1;min-width:100px"/>
-      <input id="on-price-${menuId}" type="number" min="0" placeholder="ราคา (0=ฟรี)"
-        class="rounded-lg border border-[#F0E0D4] px-2.5 py-1.5 text-[11px] outline-none w-20"/>
-    </div>
-    <div class="flex items-center gap-2 mb-2">
-      <label class="flex items-center gap-1 text-[11px] text-[#7C5B47] cursor-pointer">
-        <input type="checkbox" id="on-req-${menuId}" class="rounded"/> บังคับเลือก
-      </label>
-    </div>
-    <button onclick="saveOption('${menuId}')"
-      class="rounded-lg btn-red px-3 py-1.5 text-[11px] font-semibold text-white">บันทึก</button>
-  </div>`;
-}
-
-function renderEditOptForm(optId){
-  const d=_optCache[optId]; if(!d) return;
-  const menuId=d.menuId;
-  return `<div class="border-t border-[#F0E0D4] pt-3 mt-1">
-    <div class="flex items-center justify-between mb-2">
-      <p class="text-[11px] font-bold text-[#E12717]">✏️ แก้ไขตัวเลือก</p>
-      <button onclick="cancelEditOpt('${menuId}')"
-        class="text-[10px] text-[#9D7F6A] hover:text-[#E12717]">✕ ยกเลิก</button>
-    </div>
-    <div class="flex flex-wrap gap-1.5 mb-1.5">
-      <input id="eo-group" value="${escDash(d.group)}" placeholder="กลุ่ม"
-        class="rounded-lg border border-[#E12717]/30 bg-[#FFF9F5] px-2.5 py-1.5 text-[11px] outline-none focus:border-[#E12717]" style="flex:1;min-width:120px"/>
-      <input id="eo-name" value="${escDash(d.name)}" placeholder="ชื่อ"
-        class="rounded-lg border border-[#E12717]/30 bg-[#FFF9F5] px-2.5 py-1.5 text-[11px] outline-none focus:border-[#E12717]" style="flex:1;min-width:100px"/>
-      <input id="eo-price" type="number" min="0" value="${d.price}" placeholder="ราคา"
-        class="rounded-lg border border-[#E12717]/30 bg-[#FFF9F5] px-2.5 py-1.5 text-[11px] outline-none w-20"/>
-    </div>
-    <div class="flex items-center gap-2 mb-3">
-      <label class="flex items-center gap-1 text-[11px] text-[#7C5B47] cursor-pointer">
-        <input type="checkbox" id="eo-req" ${d.required?'checked':''} class="rounded"/> บังคับเลือก
-      </label>
-    </div>
-    <div class="flex gap-1.5">
-      <button onclick="cancelEditOpt('${menuId}')"
-        class="flex-1 rounded-lg border border-[#E8D6C6] bg-[#F7F3EF] py-2 text-[11px] font-medium text-[#2C1713]">ยกเลิก</button>
-      <button onclick="saveEditOpt('${optId}')"
-        class="flex-[1.5] rounded-lg btn-red py-2 text-[11px] font-bold text-white shadow-[0_4px_10px_rgba(225,39,23,0.2)]">💾 บันทึก</button>
-    </div>
-  </div>`;
+  box.removeClass('hidden').html('<p class="text-[11px] text-[#9D7F6A] px-1">กำลังโหลด...</p>');
+  reloadOpts(menuId);
 }
 
 function escDash(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-/* ── show edit form ── */
-function showEditOption(optId){
-  const d=_optCache[optId]; if(!d) return;
-  // highlight pill
-  $(`#opts-${d.menuId} .opill`).removeClass('ring-2 ring-[#E12717]/40 bg-[#FFF0EE]');
-  $(`#opill-${optId}`).addClass('ring-2 ring-[#E12717]/40 bg-[#FFF0EE]');
-  // swap form area to edit form
-  $(`#opts-${d.menuId} .opt-form-area`).html(renderEditOptForm(optId));
-}
-function cancelEditOpt(menuId){
-  $(`#opts-${menuId} .opt-form-area`).html(renderAddOptForm(menuId));
-  $(`#opts-${menuId} span[id^=opill-]`).removeClass('ring-2 ring-[#E12717]/40 bg-[#FFF0EE]');
+/* ─── Render entire options box (group-centric) ─── */
+function renderOptionsBox(menuId, groups){
+  const box=$('#opts-'+menuId);
+  groups.forEach(g=>g.items.forEach(o=>{
+    _optCache[o.id]={group:g.group,name:o.name,price:o.price,required:g.required?1:0,menuId};
+  }));
+  const cards=groups.map(g=>renderGroupCard(menuId,g)).join('');
+  box.html(`
+    ${cards||'<p class="text-[11px] text-[#C4A98A] mb-3">ยังไม่มีกลุ่มตัวเลือก — เพิ่มด้านล่างได้เลย</p>'}
+    ${renderAddGroupForm(menuId)}
+  `);
 }
 
-/* ── save edit ── */
-function saveEditOpt(optId){
-  const d=_optCache[optId]; if(!d) return;
-  const group=$('#eo-group').val().trim();
-  const name=$('#eo-name').val().trim();
-  const price=parseFloat($('#eo-price').val())||0;
-  const required=$('#eo-req').is(':checked')?1:0;
-  if(!group||!name) return alert('กรุณากรอกกลุ่มและชื่อตัวเลือก');
-  $.ajax({url:'api/menu_options.php?id='+encodeURIComponent(optId),method:'PATCH',contentType:'application/json',
-    data:JSON.stringify({groupName:group,optName:name,price,required}),
-    success:function(){ $.getJSON('api/menu_options.php?menu_id='+encodeURIComponent(d.menuId)).then(g=>renderOptionsBox(d.menuId,g)); },
-    error:function(){ alert('บันทึกไม่สำเร็จ'); }
+/* ─── Single group card ─── */
+function renderGroupCard(menuId, g){
+  const pills=g.items.map(o=>`
+    <span id="opill-${o.id}" class="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[10px] font-medium text-[#5A4338] ring-1 ring-[#E8D6C6]">
+      ${escDash(o.name)}${o.price>0?` <span class="font-bold text-[#E12717]">฿${o.price}</span>`:''}
+      <button class="opt-edit-btn ml-0.5 text-[#9D7F6A] hover:text-[#E12717]" data-id="${o.id}" title="แก้ไข">✏️</button>
+      <button class="opt-del-btn text-[#C8A48B] hover:text-red-500" data-id="${o.id}" title="ลบ">✕</button>
+    </span>`).join('');
+
+  return `<div class="group-card mb-3 overflow-hidden rounded-[14px] ring-1 ring-[#F0E0D4]"
+    data-menu="${escDash(menuId)}" data-group="${escDash(g.group)}">
+
+    <!-- ─ Header: ชื่อกลุ่ม + required + save + delete ─ -->
+    <div class="flex flex-wrap items-center gap-1.5 bg-[#FFF5F0] px-3 py-2.5 border-b border-[#F0E0D4]">
+      <input class="gc-name-input flex-1 min-w-[100px] rounded-lg border border-[#F0E0D4] bg-white px-2.5 py-1 text-[11px] font-bold outline-none focus:border-[#E12717]"
+        value="${escDash(g.group)}" placeholder="ชื่อกลุ่ม"/>
+      <label class="flex items-center gap-1 text-[10px] text-[#7C5B47] cursor-pointer whitespace-nowrap">
+        <input type="checkbox" class="gc-req-chk" ${g.required?'checked':''}/> บังคับเลือก
+      </label>
+      <button class="gc-save-btn rounded-lg btn-red px-2.5 py-1 text-[10px] font-bold text-white">💾 บันทึก</button>
+      <button class="gc-del-btn rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-[10px] font-semibold text-red-600 hover:bg-red-100">🗑 ลบกลุ่ม</button>
+    </div>
+
+    <!-- ─ Pills: ตัวเลือกที่มีอยู่ ─ -->
+    <div class="opt-pills-wrap flex flex-wrap gap-1.5 px-3 py-2.5 min-h-[36px]">
+      ${pills||'<span class="text-[10px] text-[#C4A98A] italic">ยังไม่มีตัวเลือก</span>'}
+    </div>
+
+    <!-- ─ Add option row ─ -->
+    <div class="flex flex-wrap items-center gap-1.5 border-t border-[#F7EFE7] bg-[#FFF9F5] px-3 py-2">
+      <input class="aog-name flex-1 min-w-[100px] rounded-lg border border-[#F0E0D4] px-2.5 py-1.5 text-[11px] outline-none focus:border-[#E12717]"
+        placeholder="ชื่อตัวเลือก เช่น ไก่, ใหญ่, เผ็ดน้อย"/>
+      <input type="number" min="0" class="aog-price w-20 rounded-lg border border-[#F0E0D4] px-2.5 py-1.5 text-[11px] outline-none"
+        placeholder="฿ ราคา"/>
+      <button class="aog-add-btn rounded-lg btn-red px-3 py-1.5 text-[10px] font-bold text-white">+ เพิ่ม</button>
+    </div>
+  </div>`;
+}
+
+/* ─── Add-new-group form (bottom) ─── */
+function renderAddGroupForm(menuId){
+  return `<div class="new-group-wrap rounded-[14px] border-2 border-dashed border-[#E8D6C6] bg-white p-3">
+    <p class="text-[11px] font-bold text-[#9D7F6A] mb-2">+ สร้างกลุ่มตัวเลือกใหม่</p>
+    <div class="flex flex-wrap gap-1.5 mb-1.5">
+      <input id="ng-gname-${menuId}" placeholder="ชื่อกลุ่ม เช่น โปรตีน, ขนาด, ระดับเผ็ด"
+        class="flex-1 min-w-[130px] rounded-lg border border-[#F0E0D4] px-2.5 py-1.5 text-[11px] outline-none focus:border-[#E12717]"/>
+    </div>
+    <div class="flex flex-wrap gap-1.5 mb-1.5">
+      <input id="ng-fname-${menuId}" placeholder="ตัวเลือกแรก เช่น ไก่, ใหญ่"
+        class="flex-1 min-w-[100px] rounded-lg border border-[#F0E0D4] px-2.5 py-1.5 text-[11px] outline-none"/>
+      <input id="ng-price-${menuId}" type="number" min="0" placeholder="฿ ราคา (0=ฟรี)"
+        class="w-24 rounded-lg border border-[#F0E0D4] px-2.5 py-1.5 text-[11px] outline-none"/>
+    </div>
+    <div class="flex items-center gap-3 mb-2">
+      <label class="flex items-center gap-1 text-[11px] text-[#7C5B47] cursor-pointer">
+        <input type="checkbox" id="ng-req-${menuId}" class="rounded"/> บังคับเลือก
+      </label>
+    </div>
+    <button class="ng-create-btn rounded-lg btn-red px-3 py-1.5 text-[11px] font-semibold text-white"
+      data-menu="${menuId}">+ สร้างกลุ่ม</button>
+  </div>`;
+}
+
+/* ══ Event Delegation ════════════════════════════════════ */
+
+/* Save group meta */
+$(document).on('click','.gc-save-btn',function(){
+  const card=$(this).closest('.group-card');
+  const menuId=card.data('menu'), origGroup=card.data('group');
+  const newGroup=card.find('.gc-name-input').val().trim();
+  const required=card.find('.gc-req-chk').is(':checked')?1:0;
+  if(!newGroup) return alert('กรุณากรอกชื่อกลุ่ม');
+  const url='api/menu_options.php?menu_id='+encodeURIComponent(menuId)+'&group='+encodeURIComponent(origGroup);
+  $.ajax({url,method:'PATCH',contentType:'application/json',
+    data:JSON.stringify({newGroupName:newGroup,required}),
+    success:()=>reloadOpts(menuId), error:()=>alert('บันทึกไม่สำเร็จ')
   });
-}
+});
 
-/* ── add new option ── */
-function saveOption(menuId){
-  const group=$('#on-group-'+menuId).val().trim();
-  const name=$('#on-name-'+menuId).val().trim();
-  const price=parseFloat($('#on-price-'+menuId).val())||0;
-  const required=$('#on-req-'+menuId).is(':checked')?1:0;
-  if(!group||!name) return alert('กรุณากรอกกลุ่มและชื่อตัวเลือก');
+/* Delete entire group */
+$(document).on('click','.gc-del-btn',function(){
+  const card=$(this).closest('.group-card');
+  const menuId=card.data('menu'), group=card.data('group');
+  if(!confirm('ลบกลุ่ม "'+group+'" และตัวเลือกทั้งหมดในกลุ่มนี้?')) return;
+  $.ajax({url:'api/menu_options.php?menu_id='+encodeURIComponent(menuId)+'&group='+encodeURIComponent(group),method:'DELETE',
+    success:()=>reloadOpts(menuId), error:()=>alert('ลบไม่สำเร็จ')
+  });
+});
+
+/* Add option to existing group */
+$(document).on('click','.aog-add-btn',function(){
+  const card=$(this).closest('.group-card');
+  const menuId=card.data('menu'), group=card.data('group');
+  const req=card.find('.gc-req-chk').is(':checked')?1:0;
+  const nameEl=card.find('.aog-name'), priceEl=card.find('.aog-price');
+  const name=nameEl.val().trim(), price=parseFloat(priceEl.val())||0;
+  if(!name) return alert('กรุณากรอกชื่อตัวเลือก');
   $.ajax({url:'api/menu_options.php',method:'POST',contentType:'application/json',
-    data:JSON.stringify({menuId,groupName:group,optName:name,price,required}),
-    success:function(){ $.getJSON('api/menu_options.php?menu_id='+encodeURIComponent(menuId)).then(g=>renderOptionsBox(menuId,g)); },
-    error:function(){ alert('บันทึกไม่สำเร็จ'); }
+    data:JSON.stringify({menuId,groupName:group,optName:name,price,required:req}),
+    success:()=>{ nameEl.val(''); priceEl.val(''); reloadOpts(menuId); },
+    error:()=>alert('บันทึกไม่สำเร็จ')
   });
-}
+});
 
-/* ── delete option ── */
-function deleteOption(optId){
-  const d=_optCache[optId]; if(!d) return;
-  if(!confirm('ลบตัวเลือก "'+d.name+'" ออก?')) return;
-  $.ajax({url:'api/menu_options.php?id='+encodeURIComponent(optId),method:'DELETE',
-    success:function(){ $.getJSON('api/menu_options.php?menu_id='+encodeURIComponent(d.menuId)).then(g=>renderOptionsBox(d.menuId,g)); },
-    error:function(){ alert('ลบไม่สำเร็จ'); }
+/* Edit option inline (replace pill with mini form) */
+$(document).on('click','.opt-edit-btn',function(){
+  const optId=$(this).data('id'), d=_optCache[optId]; if(!d) return;
+  $(`#opill-${optId}`).replaceWith(`
+    <span id="opill-${optId}" class="inline-flex items-center gap-1 rounded-lg bg-[#FFF0EE] px-2 py-1 ring-2 ring-[#E12717]/30">
+      <input id="eo-n-${optId}" value="${escDash(d.name)}"
+        class="rounded border border-[#E12717]/30 px-1.5 py-0.5 text-[11px] w-20 outline-none focus:border-[#E12717]"/>
+      <input id="eo-p-${optId}" type="number" min="0" value="${d.price}"
+        class="rounded border border-[#F0E0D4] px-1.5 py-0.5 text-[11px] w-16 outline-none" placeholder="฿"/>
+      <button class="eo-save-btn rounded bg-[#E12717] text-white px-1.5 py-0.5 text-[9px] font-bold" data-id="${optId}">💾</button>
+      <button class="eo-cancel-btn text-[#9D7F6A] hover:text-[#E12717] text-[10px]" data-id="${optId}">✕</button>
+    </span>`);
+  $(`#eo-n-${optId}`).focus();
+});
+
+/* Save inline edit */
+$(document).on('click','.eo-save-btn',function(){
+  const optId=$(this).data('id'), d=_optCache[optId]; if(!d) return;
+  const name=$(`#eo-n-${optId}`).val().trim(), price=parseFloat($(`#eo-p-${optId}`).val())||0;
+  if(!name) return alert('กรุณากรอกชื่อ');
+  $.ajax({url:'api/menu_options.php?id='+encodeURIComponent(optId),method:'PATCH',contentType:'application/json',
+    data:JSON.stringify({optName:name,price}),
+    success:()=>reloadOpts(d.menuId), error:()=>alert('บันทึกไม่สำเร็จ')
   });
-}
+});
+
+/* Cancel inline edit */
+$(document).on('click','.eo-cancel-btn',function(){
+  const d=_optCache[$(this).data('id')]; if(d) reloadOpts(d.menuId);
+});
+
+/* Delete single option */
+$(document).on('click','.opt-del-btn',function(){
+  const optId=$(this).data('id'), d=_optCache[optId]; if(!d) return;
+  if(!confirm('ลบตัวเลือก "'+d.name+'"?')) return;
+  $.ajax({url:'api/menu_options.php?id='+encodeURIComponent(optId),method:'DELETE',
+    success:()=>reloadOpts(d.menuId), error:()=>alert('ลบไม่สำเร็จ')
+  });
+});
+
+/* Create new group */
+$(document).on('click','.ng-create-btn',function(){
+  const menuId=$(this).data('menu');
+  const group=$(`#ng-gname-${menuId}`).val().trim();
+  const optName=$(`#ng-fname-${menuId}`).val().trim();
+  const price=parseFloat($(`#ng-price-${menuId}`).val())||0;
+  const required=$(`#ng-req-${menuId}`).is(':checked')?1:0;
+  if(!group||!optName) return alert('กรุณากรอกชื่อกลุ่มและตัวเลือกแรก');
+  $.ajax({url:'api/menu_options.php',method:'POST',contentType:'application/json',
+    data:JSON.stringify({menuId,groupName:group,optName,price,required}),
+    success:()=>reloadOpts(menuId), error:()=>alert('บันทึกไม่สำเร็จ')
+  });
+});
 
 /* ─── QR image live preview in settings ─── */
 $(document).on('input','#s-promptpay',function(){
