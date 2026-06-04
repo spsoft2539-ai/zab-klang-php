@@ -141,7 +141,16 @@ function renderKitchen(){
     const isAccepted = !!accepted[o.id];
     const btnHtml = isAccepted
       ? `<button onclick="markDone('${o.id}')" class="w-full rounded-xl py-2.5 text-[12px] font-semibold text-[#0F0F12]" style="background:#4ade80">✅ ทำเสร็จแล้ว</button>`
-      : `<button onclick="acceptOrder('${o.id}')" class="w-full rounded-xl py-2.5 text-[12px] font-semibold text-white btn-red">รับออเดอร์</button>`;
+      : `<div class="flex gap-2">
+           <button onclick="acceptOrder('${o.id}')"
+             class="flex-1 rounded-xl py-2.5 text-[12px] font-semibold text-white border border-white/20 bg-white/10 hover:bg-white/20">
+             ✅ รับออเดอร์
+           </button>
+           <button onclick="printKitchenOrder('${o.id}')"
+             class="flex-1 rounded-xl py-2.5 text-[12px] font-semibold text-white btn-red">
+             🖨 พิมพ์
+           </button>
+         </div>`;
     return `<div class="rounded-[22px] bg-white/8 ring-1 ring-white/10 overflow-hidden">
       <div class="flex items-center justify-between px-4 py-3 border-b border-white/10">
         <div>
@@ -167,6 +176,52 @@ function renderKitchen(){
 }
 
 function acceptOrder(id){ accepted[id]=true; renderKitchen(); }
+
+function printKitchenOrder(id){
+  const o = orders.find(x=>x.id===id); if(!o) return;
+  // Mark as accepted too
+  accepted[id] = true; renderKitchen();
+
+  const rows = o.items.map(i=>`
+    <tr>
+      <td style="font-size:15px;font-weight:700;padding:4px 0;line-height:1.4">
+        ${i.name}${i.note?`<div style="font-size:12px;font-weight:400;color:#555;margin-top:2px">(${i.note})</div>`:''}
+      </td>
+      <td style="font-size:18px;font-weight:900;text-align:right;padding:4px 0 4px 12px;white-space:nowrap">
+        × ${i.quantity}
+      </td>
+    </tr>`).join('');
+
+  const win = window.open('','_blank','width=320,height=400');
+  win.document.write(`<!DOCTYPE html><html lang="th"><head>
+    <meta charset="UTF-8"/><title>ใบงานครัว</title>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700;900&display=swap" rel="stylesheet"/>
+    <style>
+      *{margin:0;padding:0;box-sizing:border-box;}
+      @page{size:80mm auto;margin:0;}
+      body{font-family:'Sarabun',sans-serif;background:#fff;color:#111;width:80mm;padding:4mm 3mm;margin:0 auto;}
+      .header{text-align:center;border-bottom:3px solid #111;padding-bottom:3mm;margin-bottom:3mm;}
+      .title{font-size:6mm;font-weight:900;letter-spacing:1px;}
+      .table-num{font-size:10mm;font-weight:900;color:#E12717;margin:1mm 0;}
+      .meta{font-size:3mm;color:#555;}
+      table{width:100%;border-collapse:collapse;}
+      .dash{border:none;border-top:1px dashed #999;margin:3mm 0;}
+      .footer{text-align:center;font-size:3mm;color:#999;margin-top:3mm;border-top:1px solid #111;padding-top:2mm;}
+    </style>
+  </head><body>
+    <div class="header">
+      <p class="title">🔥 ใบงานครัว</p>
+      <p class="table-num">โต๊ะ ${o.tableId}</p>
+      <p class="meta">${o.id} · ${o.orderedAt} น.</p>
+    </div>
+    <table><tbody>${rows}</tbody></table>
+    <hr class="dash"/>
+    <p class="footer">รวม ${o.items.reduce((s,i)=>s+i.quantity,0)} รายการ</p>
+    <script>window.onload=function(){ window.print(); };<\/script>
+  </body></html>`);
+  win.document.close();
+  win.focus();
+}
 
 function markDone(id){
   $.ajax({url:'api/order_printed.php?id='+encodeURIComponent(id),method:'PATCH',
