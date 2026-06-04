@@ -29,7 +29,11 @@ body{padding-bottom:env(safe-area-inset-bottom);}
   <div class="flex items-center gap-2">
     <div id="live-dot" class="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></div>
     <span class="text-[11px] text-white/50">Live</span>
-    <a href="index.php" class="ml-3 text-[12px] text-white/50 hover:text-white">← กลับ</a>
+    <button id="sound-btn" onclick="toggleSound()"
+      class="ml-2 flex items-center gap-1.5 rounded-full border border-white/15 bg-white/8 px-3 py-1.5 text-[11px] font-medium text-white/50 transition-colors hover:bg-white/15">
+      🔕 เปิดเสียง
+    </button>
+    <a href="index.php" class="ml-1 text-[12px] text-white/50 hover:text-white">← กลับ</a>
   </div>
 </nav>
 
@@ -54,17 +58,60 @@ body{padding-bottom:env(safe-area-inset-bottom);}
 let orders = [];
 let accepted = {}; // orderId -> bool (accepted = cooking)
 let activeTab = 'incoming';
-let lastSince = 0;
 const POLL_MS = 8000;
+let knownOrderIds = null; // null = first load (don't play on init)
+let audioCtx = null;
+let soundEnabled = false;
 
 function fmtMoney(n){ return '฿'+Number(n).toLocaleString('th-TH'); }
+
+/* ─── Sound helpers ─── */
+function toggleSound(){
+  if(!soundEnabled){
+    try{
+      audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+      soundEnabled = true;
+      $('#sound-btn').html('🔔 เสียงเปิด').addClass('text-emerald-400 border-emerald-400/40').removeClass('text-white/50');
+      playKitchenAlert(); // test beep
+    } catch(e){ alert('เบราว์เซอร์ไม่รองรับ Web Audio'); }
+  } else {
+    soundEnabled = false;
+    $('#sound-btn').html('🔕 เปิดเสียง').removeClass('text-emerald-400 border-emerald-400/40').addClass('text-white/50');
+  }
+}
+
+function playKitchenAlert(){
+  if(!soundEnabled || !audioCtx) return;
+  try{
+    const play=(freq,start,dur)=>{
+      const osc=audioCtx.createOscillator(), gain=audioCtx.createGain();
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.type='triangle'; osc.frequency.value=freq;
+      gain.gain.setValueAtTime(0.28, audioCtx.currentTime+start);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+start+dur);
+      osc.start(audioCtx.currentTime+start);
+      osc.stop(audioCtx.currentTime+start+dur+0.05);
+    };
+    play(880,  0,    0.12);
+    play(880,  0.18, 0.12);
+    play(1320, 0.36, 0.28);
+  } catch(e){}
+}
 
 function loadOrders(){
   $.getJSON('api/orders.php', function(data){
     orders = data;
-    const newIds = data.filter(o=>!o.printed).map(o=>o.id);
-    // cleanup accepted map
-    Object.keys(accepted).forEach(k=>{ if(!newIds.includes(k)) delete accepted[k]; });
+    const unprintedIds = data.filter(o=>!o.printed).map(o=>o.id);
+
+    // Detect NEW orders (not seen before) — skip on very first load
+    if(knownOrderIds !== null){
+      const hasNew = unprintedIds.some(id=>!knownOrderIds.has(id));
+      if(hasNew) playKitchenAlert();
+    }
+    knownOrderIds = new Set(unprintedIds);
+
+    // Clean up accepted map
+    Object.keys(accepted).forEach(k=>{ if(!unprintedIds.includes(k)) delete accepted[k]; });
     renderKitchen();
   });
 }
