@@ -788,49 +788,124 @@ function toggleOptions(menuId){
   });
 }
 
+/* ── cache option data by id (avoid unsafe inline string escaping) ── */
+const _optCache = {};
+
 function renderOptionsBox(menuId, groups){
   const box=$('#opts-'+menuId);
+
+  // Cache every option for safe reference by id
+  groups.forEach(g=>g.items.forEach(o=>{ _optCache[o.id]={group:g.group,name:o.name,price:o.price,required:g.required?1:0,menuId}; }));
+
   const groupsHtml = groups.length ? groups.map(g=>`
     <div class="mb-3">
-      <div class="flex items-center justify-between mb-1.5">
-        <span class="text-[11px] font-bold text-[#5A4338]">${escDash(g.group)}${g.required?' <span class="text-red-500">*</span>':''}</span>
-      </div>
-      <div class="flex flex-wrap gap-1.5">
+      <span class="text-[11px] font-bold text-[#5A4338]">
+        ${escDash(g.group)}${g.required?' <span class="text-red-400 ml-0.5">*</span>':''}
+      </span>
+      <div class="flex flex-wrap gap-1.5 mt-1.5">
         ${g.items.map(o=>`
-          <span class="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[10px] font-medium text-[#5A4338] ring-1 ring-[#E8D6C6]">
-            ${escDash(o.name)}${o.price>0?' ฿'+o.price:''}
-            <button type="button" onclick="deleteOption('${o.id}','${menuId}')"
-              class="ml-0.5 text-[#C8A48B] hover:text-red-500">✕</button>
+          <span id="opill-${o.id}"
+            class="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[10px] font-medium text-[#5A4338] ring-1 ring-[#E8D6C6] transition-all">
+            ${escDash(o.name)}${o.price>0?` <span class="text-[#E12717]">฿${o.price}</span>`:''}
+            <button type="button" onclick="showEditOption('${o.id}')"
+              title="แก้ไข" class="ml-0.5 text-[#9D7F6A] hover:text-[#E12717] leading-none">✏️</button>
+            <button type="button" onclick="deleteOption('${o.id}')"
+              title="ลบ" class="text-[#C8A48B] hover:text-red-500 leading-none">✕</button>
           </span>`).join('')}
       </div>
     </div>`).join('')
-    : '<p class="text-[11px] text-[#C4A98A] mb-3">ยังไม่มีตัวเลือก</p>';
+    : '<p class="text-[11px] text-[#C4A98A] mb-3">ยังไม่มีตัวเลือก — เพิ่มด้านล่างได้เลย</p>';
 
   box.html(`
-    ${groupsHtml}
-    <div class="border-t border-[#F0E0D4] pt-3 mt-1">
-      <p class="text-[11px] font-bold text-[#9D7F6A] mb-2">+ เพิ่มตัวเลือกใหม่</p>
-      <div class="flex flex-wrap gap-1.5 mb-1.5">
-        <input id="on-group-${menuId}" placeholder="กลุ่ม เช่น โปรตีน, ระดับเผ็ด"
-          class="rounded-lg border border-[#F0E0D4] px-2.5 py-1.5 text-[11px] outline-none focus:border-[#E12717]" style="flex:1;min-width:120px"/>
-        <input id="on-name-${menuId}" placeholder="ชื่อ เช่น หมู, เผ็ดน้อย"
-          class="rounded-lg border border-[#F0E0D4] px-2.5 py-1.5 text-[11px] outline-none focus:border-[#E12717]" style="flex:1;min-width:100px"/>
-        <input id="on-price-${menuId}" type="number" min="0" placeholder="ราคา (0=ฟรี)"
-          class="rounded-lg border border-[#F0E0D4] px-2.5 py-1.5 text-[11px] outline-none w-20"/>
-      </div>
-      <div class="flex items-center gap-2 mb-2">
-        <label class="flex items-center gap-1 text-[11px] text-[#7C5B47] cursor-pointer">
-          <input type="checkbox" id="on-req-${menuId}" class="rounded"/> บังคับเลือก
-        </label>
-      </div>
-      <button onclick="saveOption('${menuId}')"
-        class="rounded-lg btn-red px-3 py-1.5 text-[11px] font-semibold text-white">บันทึก</button>
-    </div>
+    <div class="opt-list">${groupsHtml}</div>
+    <div class="opt-form-area">${renderAddOptForm(menuId)}</div>
   `);
 }
 
-function escDash(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function renderAddOptForm(menuId){
+  return `<div class="border-t border-[#F0E0D4] pt-3 mt-1">
+    <p class="text-[11px] font-bold text-[#9D7F6A] mb-2">+ เพิ่มตัวเลือกใหม่</p>
+    <div class="flex flex-wrap gap-1.5 mb-1.5">
+      <input id="on-group-${menuId}" placeholder="กลุ่ม เช่น โปรตีน, ระดับเผ็ด"
+        class="rounded-lg border border-[#F0E0D4] px-2.5 py-1.5 text-[11px] outline-none focus:border-[#E12717]" style="flex:1;min-width:120px"/>
+      <input id="on-name-${menuId}" placeholder="ชื่อ เช่น หมู, เผ็ดน้อย"
+        class="rounded-lg border border-[#F0E0D4] px-2.5 py-1.5 text-[11px] outline-none focus:border-[#E12717]" style="flex:1;min-width:100px"/>
+      <input id="on-price-${menuId}" type="number" min="0" placeholder="ราคา (0=ฟรี)"
+        class="rounded-lg border border-[#F0E0D4] px-2.5 py-1.5 text-[11px] outline-none w-20"/>
+    </div>
+    <div class="flex items-center gap-2 mb-2">
+      <label class="flex items-center gap-1 text-[11px] text-[#7C5B47] cursor-pointer">
+        <input type="checkbox" id="on-req-${menuId}" class="rounded"/> บังคับเลือก
+      </label>
+    </div>
+    <button onclick="saveOption('${menuId}')"
+      class="rounded-lg btn-red px-3 py-1.5 text-[11px] font-semibold text-white">บันทึก</button>
+  </div>`;
+}
 
+function renderEditOptForm(optId){
+  const d=_optCache[optId]; if(!d) return;
+  const menuId=d.menuId;
+  return `<div class="border-t border-[#F0E0D4] pt-3 mt-1">
+    <div class="flex items-center justify-between mb-2">
+      <p class="text-[11px] font-bold text-[#E12717]">✏️ แก้ไขตัวเลือก</p>
+      <button onclick="cancelEditOpt('${menuId}')"
+        class="text-[10px] text-[#9D7F6A] hover:text-[#E12717]">✕ ยกเลิก</button>
+    </div>
+    <div class="flex flex-wrap gap-1.5 mb-1.5">
+      <input id="eo-group" value="${escDash(d.group)}" placeholder="กลุ่ม"
+        class="rounded-lg border border-[#E12717]/30 bg-[#FFF9F5] px-2.5 py-1.5 text-[11px] outline-none focus:border-[#E12717]" style="flex:1;min-width:120px"/>
+      <input id="eo-name" value="${escDash(d.name)}" placeholder="ชื่อ"
+        class="rounded-lg border border-[#E12717]/30 bg-[#FFF9F5] px-2.5 py-1.5 text-[11px] outline-none focus:border-[#E12717]" style="flex:1;min-width:100px"/>
+      <input id="eo-price" type="number" min="0" value="${d.price}" placeholder="ราคา"
+        class="rounded-lg border border-[#E12717]/30 bg-[#FFF9F5] px-2.5 py-1.5 text-[11px] outline-none w-20"/>
+    </div>
+    <div class="flex items-center gap-2 mb-3">
+      <label class="flex items-center gap-1 text-[11px] text-[#7C5B47] cursor-pointer">
+        <input type="checkbox" id="eo-req" ${d.required?'checked':''} class="rounded"/> บังคับเลือก
+      </label>
+    </div>
+    <div class="flex gap-1.5">
+      <button onclick="cancelEditOpt('${menuId}')"
+        class="flex-1 rounded-lg border border-[#E8D6C6] bg-[#F7F3EF] py-2 text-[11px] font-medium text-[#2C1713]">ยกเลิก</button>
+      <button onclick="saveEditOpt('${optId}')"
+        class="flex-[1.5] rounded-lg btn-red py-2 text-[11px] font-bold text-white shadow-[0_4px_10px_rgba(225,39,23,0.2)]">💾 บันทึก</button>
+    </div>
+  </div>`;
+}
+
+function escDash(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+/* ── show edit form ── */
+function showEditOption(optId){
+  const d=_optCache[optId]; if(!d) return;
+  // highlight pill
+  $(`#opts-${d.menuId} .opill`).removeClass('ring-2 ring-[#E12717]/40 bg-[#FFF0EE]');
+  $(`#opill-${optId}`).addClass('ring-2 ring-[#E12717]/40 bg-[#FFF0EE]');
+  // swap form area to edit form
+  $(`#opts-${d.menuId} .opt-form-area`).html(renderEditOptForm(optId));
+}
+function cancelEditOpt(menuId){
+  $(`#opts-${menuId} .opt-form-area`).html(renderAddOptForm(menuId));
+  $(`#opts-${menuId} span[id^=opill-]`).removeClass('ring-2 ring-[#E12717]/40 bg-[#FFF0EE]');
+}
+
+/* ── save edit ── */
+function saveEditOpt(optId){
+  const d=_optCache[optId]; if(!d) return;
+  const group=$('#eo-group').val().trim();
+  const name=$('#eo-name').val().trim();
+  const price=parseFloat($('#eo-price').val())||0;
+  const required=$('#eo-req').is(':checked')?1:0;
+  if(!group||!name) return alert('กรุณากรอกกลุ่มและชื่อตัวเลือก');
+  $.ajax({url:'api/menu_options.php?id='+encodeURIComponent(optId),method:'PATCH',contentType:'application/json',
+    data:JSON.stringify({groupName:group,optName:name,price,required}),
+    success:function(){ $.getJSON('api/menu_options.php?menu_id='+encodeURIComponent(d.menuId)).then(g=>renderOptionsBox(d.menuId,g)); },
+    error:function(){ alert('บันทึกไม่สำเร็จ'); }
+  });
+}
+
+/* ── add new option ── */
 function saveOption(menuId){
   const group=$('#on-group-'+menuId).val().trim();
   const name=$('#on-name-'+menuId).val().trim();
@@ -844,10 +919,12 @@ function saveOption(menuId){
   });
 }
 
-function deleteOption(optId, menuId){
-  if(!confirm('ลบตัวเลือกนี้?')) return;
+/* ── delete option ── */
+function deleteOption(optId){
+  const d=_optCache[optId]; if(!d) return;
+  if(!confirm('ลบตัวเลือก "'+d.name+'" ออก?')) return;
   $.ajax({url:'api/menu_options.php?id='+encodeURIComponent(optId),method:'DELETE',
-    success:function(){ $.getJSON('api/menu_options.php?menu_id='+encodeURIComponent(menuId)).then(g=>renderOptionsBox(menuId,g)); },
+    success:function(){ $.getJSON('api/menu_options.php?menu_id='+encodeURIComponent(d.menuId)).then(g=>renderOptionsBox(d.menuId,g)); },
     error:function(){ alert('ลบไม่สำเร็จ'); }
   });
 }

@@ -34,6 +34,23 @@ if ($method === 'POST') {
               'optName' => $opt, 'price' => $price, 'required' => $required], 201);
 }
 
+if ($method === 'PATCH') {
+    $id   = trim($_GET['id'] ?? '');
+    if (!$id) json_out(['error' => 'id required'], 400);
+    $body   = json_body();
+    $fields = []; $types = ''; $params = [];
+    if (array_key_exists('groupName', $body)) { $fields[]='group_name=?'; $types.='s'; $params[]=trim($body['groupName']); }
+    if (array_key_exists('optName',   $body)) { $fields[]='opt_name=?';   $types.='s'; $params[]=trim($body['optName']); }
+    if (array_key_exists('price',     $body)) { $fields[]='price=?';      $types.='d'; $params[]=(float)$body['price']; }
+    if (array_key_exists('required',  $body)) { $fields[]='required=?';   $types.='i'; $params[]=(int)$body['required']; }
+    if (!$fields) json_out(['error' => 'nothing to update'], 400);
+    $params[] = $id; $types .= 's';
+    $stmt = db()->prepare('UPDATE menu_options SET '.implode(',',$fields).' WHERE id=?');
+    $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    json_out(['ok' => true]);
+}
+
 if ($method === 'DELETE') {
     $id = trim($_GET['id'] ?? '');
     if (!$id) json_out(['error' => 'id required'], 400);
