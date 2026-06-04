@@ -185,6 +185,24 @@ CREATE TABLE IF NOT EXISTS `menu_options` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ────────────────────────────────────────────────────────────
+--  4b. users  (Role-based access control)
+-- ────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `users` (
+  `id`         varchar(50)  NOT NULL,
+  `username`   varchar(50)  UNIQUE NOT NULL,
+  `password`   varchar(255) NOT NULL,
+  `name`       varchar(100) NOT NULL,
+  `role`       ENUM('owner','manager','staff') NOT NULL DEFAULT 'staff',
+  `is_active`  tinyint(1)   NOT NULL DEFAULT 1,
+  `created_at` bigint(20)   NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_username` (`username`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT IGNORE INTO `users` (`id`, `username`, `password`, `name`, `role`, `is_active`, `created_at`) VALUES
+('user-owner', 'owner', '$2y$10$4Y9Yxsk.ZA5LHcSKwXEHCOLTFR7eG9SkTyqS4Y8Y5/jjqI.V8p.K6', 'เจ้าของร้าน', 'owner', 1, 1780000000000);
+
+-- ────────────────────────────────────────────────────────────
 --  5. restaurant_tables
 -- ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS `restaurant_tables` (

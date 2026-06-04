@@ -1,4 +1,7 @@
 ﻿<?php
+require_once 'auth.php';
+requireAuth();
+
 // Landing Page — แซ่บกลางซอย
 ?><!DOCTYPE html>
 <html lang="th">

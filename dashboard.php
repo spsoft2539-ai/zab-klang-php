@@ -1,4 +1,7 @@
-﻿<!DOCTYPE html>
+﻿<?php
+require_once 'auth.php';
+requireRole(['owner', 'manager']);
+?><!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8"/>

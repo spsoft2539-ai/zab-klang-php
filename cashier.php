@@ -1,3 +1,4 @@
+<?php require_once "auth.php"; requireAuth(); ?>
 <!DOCTYPE html>
 <html lang="th">
 <head>

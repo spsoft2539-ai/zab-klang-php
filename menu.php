@@ -1,3 +1,4 @@
+<?php require_once "auth.php"; requireAuth(); ?>
 ﻿<?php
 // Customer menu page — menu.php?table=A1
 $tableId = strtoupper(trim($_GET['table'] ?? ''));
