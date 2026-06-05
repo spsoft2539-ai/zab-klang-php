@@ -284,9 +284,14 @@ function renderHistory(){
         <h2 class="text-[18px] font-bold text-[#2C1713]">ประวัติการทำรายการ</h2>
         <p class="text-[12px] text-[#9D7F6A]">${bills.length} บิลทั้งหมด</p>
       </div>
-      <button onclick="exportCsv()" class="flex items-center gap-1.5 rounded-xl border border-[#E8D6C6] bg-white px-3 py-2 text-[12px] font-medium text-[#7C5B47] hover:bg-[#FFF9F5]">
-        ⬇ Export CSV
-      </button>
+      <div class="flex gap-2">
+        <button onclick="showCreateBill()" class="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-semibold text-white btn-red">
+          ➕ สร้างบิล
+        </button>
+        <button onclick="exportCsv()" class="flex items-center gap-1.5 rounded-xl border border-[#E8D6C6] bg-white px-3 py-2 text-[12px] font-medium text-[#7C5B47] hover:bg-[#FFF9F5]">
+          ⬇ Export CSV
+        </button>
+      </div>
     </div>
     ${!bills.length
       ? `<div class="rounded-[20px] border border-dashed border-[#E8D6C6] bg-white py-12 text-center">
@@ -333,19 +338,302 @@ function renderBillRow(b){
         <div class="flex justify-between font-semibold text-[#2C1713]"><span>รวมทั้งสิ้น</span><span>${fmtMoney(b.total)}</span></div>
         ${cashHtml}${changeHtml}
       </div>
-      <!-- ปุ่มแก้ไข + ลบ -->
-      <div class="mt-3 flex gap-2 pt-2 border-t border-[#F0E0D4]">
-        <button onclick="showEditBill('${b.id}')"
-          class="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#E8D6C6] bg-[#F7F3EF] py-2 text-[11px] font-semibold text-[#5A4338] hover:bg-[#EFE8E0]">
-          ✏️ แก้ไขบิล
+      <!-- ปุ่มแก้ไข + ลบ + แก้ไขรายการ -->
+      <div class="mt-3 pt-2 border-t border-[#F0E0D4] space-y-1.5">
+        <button onclick="showEditBillItems('${b.id}')"
+          class="flex w-full items-center justify-center gap-1.5 rounded-xl border border-blue-100 bg-blue-50 py-2 text-[11px] font-semibold text-blue-700 hover:bg-blue-100">
+          📝 แก้ไขรายการอาหาร
         </button>
-        <button onclick="deleteBill('${b.id}','${b.tableId}')"
-          class="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-red-100 bg-red-50 py-2 text-[11px] font-semibold text-red-600 hover:bg-red-100">
-          🗑 ลบบิล
-        </button>
+        <div class="flex gap-2">
+          <button onclick="showEditBill('${b.id}')"
+            class="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#E8D6C6] bg-[#F7F3EF] py-2 text-[11px] font-semibold text-[#5A4338] hover:bg-[#EFE8E0]">
+            ✏️ แก้ไขบิล
+          </button>
+          <button onclick="deleteBill('${b.id}','${b.tableId}')"
+            class="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-red-100 bg-red-50 py-2 text-[11px] font-semibold text-red-600 hover:bg-red-100">
+            🗑 ลบบิล
+          </button>
+        </div>
       </div>
     </div>
   </div>`;
+}
+
+/* ══════════════════════════════════════════════
+   สร้างบิล Manual
+══════════════════════════════════════════════ */
+let createBillItems = [];
+
+function showCreateBill(){
+  createBillItems = [];
+  $('#cb-modal').remove();
+  const catOptions = categories.map(c=>`<option value="${c}">${c}</option>`).join('');
+  const menuOptions = menuItems.map(m=>`<option value="${m.id}" data-price="${m.price}" data-name="${escHtml(m.name)}">${escHtml(m.name)} (฿${m.price})</option>`).join('');
+
+  $('body').append(`
+    <div id="cb-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-3">
+      <div class="bg-white rounded-[24px] w-full max-w-lg shadow-xl flex flex-col" style="max-height:90vh">
+        <div class="flex items-center justify-between px-6 pt-5 pb-3 border-b border-[#F0E0D4] shrink-0">
+          <h3 class="text-[16px] font-bold text-[#2C1713]">➕ สร้างบิล Manual</h3>
+          <button onclick="$('#cb-modal').remove()" class="h-8 w-8 flex items-center justify-center rounded-full bg-[#F7EFE7] text-[#5A4338]">✕</button>
+        </div>
+        <div class="overflow-y-auto flex-1 px-6 py-4 space-y-4">
+          <!-- ข้อมูลบิล -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-[11px] text-[#9D7F6A] mb-1 block">หมายเลขโต๊ะ</label>
+              <input id="cb-table" value="manual" class="w-full rounded-xl border border-[#F0E0D4] px-3 py-2 text-[13px] outline-none focus:border-[#E12717]"/>
+            </div>
+            <div>
+              <label class="text-[11px] text-[#9D7F6A] mb-1 block">จำนวนลูกค้า</label>
+              <input id="cb-guests" type="number" min="1" value="1" class="w-full rounded-xl border border-[#F0E0D4] px-3 py-2 text-[13px] outline-none focus:border-[#E12717]"/>
+            </div>
+          </div>
+          <div>
+            <label class="text-[11px] text-[#9D7F6A] mb-1 block">วิธีชำระเงิน</label>
+            <select id="cb-pm" onchange="cbToggleCash()" class="w-full rounded-xl border border-[#F0E0D4] px-3 py-2.5 text-[13px] outline-none">
+              <option value="cash">💵 เงินสด</option>
+              <option value="transfer">🏦 โอนเงิน/QR</option>
+            </select>
+          </div>
+          <div id="cb-cash-wrap">
+            <label class="text-[11px] text-[#9D7F6A] mb-1 block">รับเงินมา</label>
+            <input id="cb-cash" type="number" min="0" placeholder="0.00" class="w-full rounded-xl border border-[#F0E0D4] px-3 py-2 text-[13px] outline-none focus:border-[#E12717]"/>
+          </div>
+
+          <!-- เพิ่มรายการ -->
+          <div class="rounded-[16px] bg-[#FFF9F5] p-4 ring-1 ring-[#F0E0D4]">
+            <p class="text-[12px] font-semibold text-[#2C1713] mb-2">เพิ่มรายการอาหาร</p>
+            <div class="space-y-2">
+              <select id="cb-menu-sel" onchange="cbSelectMenu()" class="w-full rounded-xl border border-[#F0E0D4] px-3 py-2 text-[12px] outline-none">
+                <option value="">— เลือกจากเมนู หรือพิมพ์เอง —</option>
+                ${menuOptions}
+              </select>
+              <div class="flex gap-2">
+                <input id="cb-item-name" placeholder="ชื่อรายการ *" class="flex-[2] rounded-xl border border-[#F0E0D4] px-3 py-2 text-[12px] outline-none focus:border-[#E12717]"/>
+                <input id="cb-item-price" type="number" min="0" placeholder="ราคา *" class="flex-1 rounded-xl border border-[#F0E0D4] px-3 py-2 text-[12px] outline-none focus:border-[#E12717]"/>
+                <input id="cb-item-qty" type="number" min="1" value="1" class="w-14 rounded-xl border border-[#F0E0D4] px-2 py-2 text-[12px] outline-none text-center"/>
+              </div>
+              <input id="cb-item-note" placeholder="หมายเหตุ (ไม่บังคับ)" class="w-full rounded-xl border border-[#F0E0D4] px-3 py-2 text-[12px] outline-none"/>
+              <button onclick="cbAddItem()" class="w-full rounded-xl btn-red py-2 text-[12px] font-bold text-white">+ เพิ่มรายการ</button>
+            </div>
+          </div>
+
+          <!-- รายการที่เพิ่มแล้ว -->
+          <div id="cb-items-list"></div>
+        </div>
+
+        <!-- Footer -->
+        <div class="px-6 py-4 border-t border-[#F0E0D4] shrink-0">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-[13px] text-[#9D7F6A]">ยอดรวม (รวม VAT 7%)</span>
+            <span id="cb-total-label" class="text-[18px] font-bold text-[#E12717] tabular-nums">฿0</span>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="$('#cb-modal').remove()" class="flex-1 rounded-xl border border-[#E8D6C6] bg-white py-3 text-[13px] font-medium text-[#2C1713]">ยกเลิก</button>
+            <button onclick="saveCreateBill()" class="flex-[1.5] rounded-xl btn-red py-3 text-[13px] font-bold text-white">💾 สร้างบิล</button>
+          </div>
+        </div>
+      </div>
+    </div>`);
+}
+
+function cbToggleCash(){
+  $('#cb-pm').val()==='cash' ? $('#cb-cash-wrap').removeClass('hidden') : $('#cb-cash-wrap').addClass('hidden');
+}
+function cbSelectMenu(){
+  const sel = $('#cb-menu-sel option:selected');
+  if(!sel.val()) return;
+  $('#cb-item-name').val(sel.data('name'));
+  $('#cb-item-price').val(sel.data('price'));
+  $('#cb-item-qty').val(1);
+}
+function cbAddItem(){
+  const name  = $('#cb-item-name').val().trim();
+  const price = parseFloat($('#cb-item-price').val())||0;
+  const qty   = parseInt($('#cb-item-qty').val())||1;
+  const note  = $('#cb-item-note').val().trim();
+  const menuSel = $('#cb-menu-sel');
+  const menuId  = menuSel.val() || null;
+  if(!name||!price) return alert('กรุณากรอกชื่อและราคา');
+  createBillItems.push({menu_id:menuId, name, price, quantity:qty, note:note||null});
+  $('#cb-item-name,#cb-item-note').val('');
+  $('#cb-item-price').val('');
+  $('#cb-item-qty').val(1);
+  menuSel.val('');
+  cbRenderItems();
+}
+function cbRenderItems(){
+  const sub   = createBillItems.reduce((s,i)=>s+i.price*i.quantity,0);
+  const total = sub + Math.round(sub*0.07);
+  $('#cb-total-label').text(fmtMoney(total));
+  if(!createBillItems.length){ $('#cb-items-list').html(''); return; }
+  $('#cb-items-list').html(`
+    <div class="space-y-1.5">
+      ${createBillItems.map((i,idx)=>`
+        <div class="flex items-center gap-2 rounded-xl bg-white px-3 py-2 ring-1 ring-[#F0E0D4]">
+          <div class="flex-1 min-w-0">
+            <p class="text-[12px] font-semibold text-[#2C1713] truncate">${escHtml(i.name)}</p>
+            ${i.note?`<p class="text-[10px] text-[#9D7F6A]">${escHtml(i.note)}</p>`:''}
+          </div>
+          <span class="text-[11px] text-[#9D7F6A]">×${i.quantity}</span>
+          <span class="text-[13px] font-bold text-[#E12717] tabular-nums">${fmtMoney(i.price*i.quantity)}</span>
+          <button onclick="cbRemoveItem(${idx})" class="h-6 w-6 flex items-center justify-center rounded-lg bg-red-50 text-red-500 text-[10px]">✕</button>
+        </div>`).join('')}
+    </div>`);
+}
+function cbRemoveItem(idx){ createBillItems.splice(idx,1); cbRenderItems(); }
+
+function saveCreateBill(){
+  if(!createBillItems.length) return alert('กรุณาเพิ่มรายการอาหารอย่างน้อย 1 รายการ');
+  const pm     = $('#cb-pm').val();
+  const table  = $('#cb-table').val().trim()||'manual';
+  const guests = parseInt($('#cb-guests').val())||1;
+  const cr     = pm==='cash' ? (parseFloat($('#cb-cash').val())||null) : null;
+  $.ajax({url:'api/bills.php', method:'POST', contentType:'application/json',
+    data: JSON.stringify({table_id:table, payment_method:pm, guests, cash_received:cr, items:createBillItems}),
+    success: ()=>{ $('#cb-modal').remove(); loadAll(); alert('✅ สร้างบิลสำเร็จ!'); },
+    error: r=>alert('เกิดข้อผิดพลาด: '+(r.responseJSON?.error||'unknown'))
+  });
+}
+
+/* ══════════════════════════════════════════════
+   แก้ไขรายการอาหารในบิล
+══════════════════════════════════════════════ */
+function showEditBillItems(billId){
+  const b = bills.find(x=>x.id===billId); if(!b) return;
+  $('#ebi-modal').remove();
+  const menuOptions = menuItems.map(m=>`<option value="${m.id}" data-price="${m.price}" data-name="${escHtml(m.name)}">${escHtml(m.name)} (฿${m.price})</option>`).join('');
+
+  $('body').append(`
+    <div id="ebi-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-3">
+      <div class="bg-white rounded-[24px] w-full max-w-lg shadow-xl flex flex-col" style="max-height:90vh">
+        <div class="flex items-center justify-between px-6 pt-5 pb-3 border-b border-[#F0E0D4] shrink-0">
+          <div>
+            <p class="text-[10px] font-bold text-[#E12717] uppercase">แก้ไขรายการอาหาร</p>
+            <h3 class="text-[15px] font-bold text-[#2C1713]">โต๊ะ ${escHtml(b.tableId)} · ${b.id}</h3>
+          </div>
+          <button onclick="$('#ebi-modal').remove(); loadAll();" class="h-8 w-8 flex items-center justify-center rounded-full bg-[#F7EFE7] text-[#5A4338]">✕</button>
+        </div>
+        <div class="overflow-y-auto flex-1 px-6 py-4">
+
+          <!-- รายการปัจจุบัน -->
+          <div id="ebi-current-items" class="space-y-2 mb-4">
+            ${b.items.map(i=>`
+              <div id="ebi-row-${i.itemId}" class="flex items-center gap-2 rounded-[14px] bg-[#FFF9F5] px-3 py-2.5 ring-1 ring-[#F0E0D4]">
+                <div class="flex-1 min-w-0">
+                  <p class="text-[12px] font-semibold text-[#2C1713] truncate">${escHtml(i.name)}</p>
+                  ${i.note?`<p class="text-[10px] text-[#9D7F6A]">${escHtml(i.note)}</p>`:''}
+                </div>
+                <input type="number" min="1" value="${i.quantity}"
+                  onchange="ebiUpdateItem(${i.itemId}, this.value)"
+                  class="w-14 rounded-lg border border-[#F0E0D4] px-2 py-1 text-[12px] text-center outline-none"/>
+                <span class="text-[12px] font-bold text-[#E12717] tabular-nums w-16 text-right">${fmtMoney(i.price)}</span>
+                <button onclick="ebiDeleteItem(${i.itemId},'${escHtml(i.name)}')"
+                  class="h-7 w-7 flex items-center justify-center rounded-lg bg-red-50 text-red-500 hover:bg-red-100 text-[11px] shrink-0">🗑</button>
+              </div>`).join('')}
+          </div>
+
+          <!-- เพิ่มรายการใหม่ -->
+          <div class="rounded-[16px] bg-[#F7F3EF] p-4 ring-1 ring-[#F0E0D4]">
+            <p class="text-[12px] font-semibold text-[#2C1713] mb-2">+ เพิ่มรายการใหม่</p>
+            <div class="space-y-2">
+              <select id="ebi-menu-sel" onchange="ebiSelectMenu()" class="w-full rounded-xl border border-[#F0E0D4] px-3 py-2 text-[12px] outline-none">
+                <option value="">— เลือกจากเมนู หรือพิมพ์เอง —</option>
+                ${menuOptions}
+              </select>
+              <div class="flex gap-2">
+                <input id="ebi-name" placeholder="ชื่อรายการ *" class="flex-[2] rounded-xl border border-[#F0E0D4] px-3 py-2 text-[12px] outline-none focus:border-[#E12717]"/>
+                <input id="ebi-price" type="number" min="0" placeholder="ราคา *" class="flex-1 rounded-xl border border-[#F0E0D4] px-3 py-2 text-[12px] outline-none"/>
+                <input id="ebi-qty" type="number" min="1" value="1" class="w-14 rounded-xl border border-[#F0E0D4] px-2 py-2 text-[12px] outline-none text-center"/>
+              </div>
+              <input id="ebi-note" placeholder="หมายเหตุ" class="w-full rounded-xl border border-[#F0E0D4] px-3 py-2 text-[12px] outline-none"/>
+              <button onclick="ebiAddItem('${billId}')" class="w-full rounded-xl btn-red py-2 text-[12px] font-bold text-white">+ เพิ่มรายการ</button>
+            </div>
+          </div>
+        </div>
+        <div id="ebi-total-bar" class="px-6 py-3 border-t border-[#F0E0D4] shrink-0 flex items-center justify-between">
+          <span class="text-[12px] text-[#9D7F6A]">ยอดรวม (อัพเดทอัตโนมัติ)</span>
+          <span id="ebi-total-val" class="text-[18px] font-bold text-[#E12717] tabular-nums">${fmtMoney(b.total)}</span>
+        </div>
+      </div>
+    </div>`);
+}
+
+function ebiSelectMenu(){
+  const sel = $('#ebi-menu-sel option:selected');
+  if(!sel.val()) return;
+  $('#ebi-name').val(sel.data('name'));
+  $('#ebi-price').val(sel.data('price'));
+  $('#ebi-qty').val(1);
+}
+
+function ebiAddItem(billId){
+  const name  = $('#ebi-name').val().trim();
+  const price = parseFloat($('#ebi-price').val())||0;
+  const qty   = parseInt($('#ebi-qty').val())||1;
+  const note  = $('#ebi-note').val().trim()||null;
+  const menuId = $('#ebi-menu-sel').val()||null;
+  if(!name||!price) return alert('กรุณากรอกชื่อและราคา');
+  $.ajax({url:'api/bill_items.php?bill_id='+encodeURIComponent(billId), method:'POST',
+    contentType:'application/json',
+    data: JSON.stringify({name, price, quantity:qty, note, menu_id:menuId}),
+    success: ()=>{
+      $('#ebi-name,#ebi-note').val(''); $('#ebi-price').val(''); $('#ebi-qty').val(1); $('#ebi-menu-sel').val('');
+      ebiRefresh(billId);
+    },
+    error: ()=>alert('เพิ่มรายการไม่สำเร็จ')
+  });
+}
+
+function ebiUpdateItem(itemId, qty){
+  if(!parseInt(qty)||parseInt(qty)<1) return;
+  $.ajax({url:'api/bill_items.php?id='+itemId, method:'PATCH',
+    contentType:'application/json',
+    data: JSON.stringify({quantity:parseInt(qty)}),
+    success: ()=>ebiRefreshTotal(),
+    error: ()=>alert('แก้ไขไม่สำเร็จ')
+  });
+}
+
+function ebiDeleteItem(itemId, name){
+  if(!confirm('ลบ "'+name+'" ออกจากบิล?')) return;
+  $.ajax({url:'api/bill_items.php?id='+itemId, method:'DELETE',
+    success: ()=>{ $('#ebi-row-'+itemId).remove(); ebiRefreshTotal(); },
+    error: ()=>alert('ลบไม่สำเร็จ')
+  });
+}
+
+function ebiRefresh(billId){
+  $.getJSON('api/bills.php', data=>{
+    const b = data.find(x=>x.id===billId); if(!b) return;
+    // อัพเดทรายการ
+    $('#ebi-current-items').html(b.items.map(i=>`
+      <div id="ebi-row-${i.itemId}" class="flex items-center gap-2 rounded-[14px] bg-[#FFF9F5] px-3 py-2.5 ring-1 ring-[#F0E0D4]">
+        <div class="flex-1 min-w-0">
+          <p class="text-[12px] font-semibold text-[#2C1713] truncate">${escHtml(i.name)}</p>
+          ${i.note?`<p class="text-[10px] text-[#9D7F6A]">${escHtml(i.note)}</p>`:''}
+        </div>
+        <input type="number" min="1" value="${i.quantity}"
+          onchange="ebiUpdateItem(${i.itemId}, this.value)"
+          class="w-14 rounded-lg border border-[#F0E0D4] px-2 py-1 text-[12px] text-center outline-none"/>
+        <span class="text-[12px] font-bold text-[#E12717] tabular-nums w-16 text-right">${fmtMoney(i.price)}</span>
+        <button onclick="ebiDeleteItem(${i.itemId},'${escHtml(i.name)}')"
+          class="h-7 w-7 flex items-center justify-center rounded-lg bg-red-50 text-red-500 hover:bg-red-100 text-[11px] shrink-0">🗑</button>
+      </div>`).join(''));
+    $('#ebi-total-val').text(fmtMoney(b.total));
+    bills = data;
+  });
+}
+
+function ebiRefreshTotal(){
+  // ดึงยอดใหม่จาก server
+  const billId = $('#ebi-modal h3').text().split('·')[1]?.trim();
+  if(!billId) return;
+  $.getJSON('api/bills.php', data=>{
+    const b = data.find(x=>x.id===billId);
+    if(b) { $('#ebi-total-val').text(fmtMoney(b.total)); bills = data; }
+  });
 }
 
 /* ══ ลบบิล ══ */
