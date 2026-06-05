@@ -35,6 +35,10 @@ body{padding-bottom:env(safe-area-inset-bottom);}
       🔕 เปิดเสียง
     </button>
     <a href="index.php" class="ml-1 text-[12px] text-white/50 hover:text-white">← กลับ</a>
+    <a href="logout.php" onclick="return confirm('ออกจากระบบ?')"
+      class="flex items-center gap-1 rounded-full border border-white/15 bg-white/8 px-3 py-1.5 text-[11px] font-medium text-white/50 hover:text-red-400 hover:border-red-400/30">
+      🚪 ออก
+    </a>
   </div>
 </nav>
 
@@ -185,12 +189,11 @@ function printKitchenOrder(id){
 
   const rows = o.items.map(i=>`
     <tr>
-      <td style="font-size:15px;font-weight:700;padding:4px 0;line-height:1.4">
-        ${i.name}${i.note?`<div style="font-size:12px;font-weight:400;color:#555;margin-top:2px">(${i.note})</div>`:''}
+      <td>
+        ${i.name}
+        ${i.note?`<div class="note-text">(${i.note})</div>`:''}
       </td>
-      <td style="font-size:18px;font-weight:900;text-align:right;padding:4px 0 4px 12px;white-space:nowrap">
-        × ${i.quantity}
-      </td>
+      <td>× ${i.quantity}</td>
     </tr>`).join('');
 
   const win = window.open('','_blank','width=320,height=400');
@@ -200,14 +203,25 @@ function printKitchenOrder(id){
     <style>
       *{margin:0;padding:0;box-sizing:border-box;}
       @page{size:80mm auto;margin:0;}
-      body{font-family:'Sarabun',sans-serif;background:#fff;color:#111;width:80mm;padding:4mm 3mm;margin:0 auto;}
-      .header{text-align:center;border-bottom:3px solid #111;padding-bottom:3mm;margin-bottom:3mm;}
-      .title{font-size:6mm;font-weight:900;letter-spacing:1px;}
-      .table-num{font-size:10mm;font-weight:900;color:#E12717;margin:1mm 0;}
-      .meta{font-size:3mm;color:#555;}
+      body{
+        font-family:'Sarabun','TH Sarabun New',sans-serif;
+        background:#fff;color:#000;
+        width:80mm;padding:4mm 3mm;margin:0 auto;
+        font-weight:600;
+        letter-spacing:0.2px;
+        -webkit-print-color-adjust:exact;
+        print-color-adjust:exact;
+      }
+      .header{text-align:center;border-bottom:3px solid #000;padding-bottom:3mm;margin-bottom:3mm;}
+      .title{font-size:6.5mm;font-weight:900;letter-spacing:1px;}
+      .table-num{font-size:11mm;font-weight:900;color:#000;margin:1.5mm 0;letter-spacing:0.5px;}
+      .meta{font-size:3.2mm;color:#333;font-weight:600;}
       table{width:100%;border-collapse:collapse;}
-      .dash{border:none;border-top:1px dashed #999;margin:3mm 0;}
-      .footer{text-align:center;font-size:3mm;color:#999;margin-top:3mm;border-top:1px solid #111;padding-top:2mm;}
+      td{font-size:4.2mm;font-weight:700;padding:2.5mm 0;line-height:1.5;letter-spacing:0.2px;}
+      td:last-child{font-size:5mm;font-weight:900;text-align:right;padding-left:3mm;white-space:nowrap;}
+      .note-text{font-size:3.2mm;font-weight:600;color:#333;margin-top:1mm;}
+      .dash{border:none;border-top:1px dashed #000;margin:3mm 0;}
+      .footer{text-align:center;font-size:3.2mm;font-weight:700;color:#000;margin-top:3mm;border-top:2px solid #000;padding-top:2mm;}
     </style>
   </head><body>
     <div class="header">

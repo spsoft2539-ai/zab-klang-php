@@ -1,4 +1,4 @@
-<?php require_once "auth.php"; requireAuth(); ?>
+<?php require_once "auth.php"; requireAuth(); $user = getCurrentUser(); ?>
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -39,11 +39,58 @@ body{font-family:'Sarabun',sans-serif;background:#F7F3EF;}
   display:flex;flex-direction:column;
   transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);}
 .picker-panel.open{transform:translateX(0);}
-/* Print: show only QR content */
+/* Print: thermal 80mm optimized */
 @media print{
   body > *:not(#print-area){display:none!important;}
-  #print-area{display:block!important;position:static;padding:20px;}
-  #print-area canvas,#print-area img{max-width:200px!important;}
+  #print-area{display:block!important;position:static;padding:4mm 3mm;}
+
+  /* ── Thermal font optimization ── */
+  #print-area, #print-area * {
+    font-family: 'Sarabun', 'TH Sarabun New', sans-serif !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.2px !important;
+    line-height: 1.55 !important;
+    color: #000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* หัวข้อใหญ่ */
+  #print-area h1, #print-area h2,
+  #print-area .receipt-title {
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.4px !important;
+  }
+
+  /* ยอดรวม */
+  #print-area .receipt-total,
+  #print-area .total-amount {
+    font-size: 15px !important;
+    font-weight: 700 !important;
+  }
+
+  /* รายการอาหาร */
+  #print-area .receipt-item {
+    font-size: 12px !important;
+    font-weight: 600 !important;
+  }
+
+  /* เส้นแบ่ง */
+  #print-area hr {
+    border: none !important;
+    border-top: 1px dashed #000 !important;
+    margin: 2mm 0 !important;
+  }
+
+  /* QR Code */
+  #print-area canvas,
+  #print-area img {
+    max-width: 62mm !important;
+    height: auto !important;
+    image-rendering: crisp-edges !important;
+  }
 }
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet"/>
@@ -67,6 +114,10 @@ body{font-family:'Sarabun',sans-serif;background:#F7F3EF;}
     </button>
     <a href="kitchen.php" class="flex h-9 items-center gap-1.5 rounded-xl bg-[#F7F3EF] px-3 text-[12px] font-medium text-[#4A3728]">
       🍳 ครัว
+    </a>
+    <a href="logout.php" onclick="return confirm('ออกจากระบบ?')"
+      class="flex h-9 items-center gap-1 rounded-xl border border-[#F0E0D4] bg-[#F7F3EF] px-3 text-[12px] font-medium text-[#7C5B47] hover:bg-red-50 hover:text-red-600">
+      🚪
     </a>
   </div>
 </nav>
@@ -327,7 +378,8 @@ function showSheet(tid){
       </div>
     </div>`;
   } else if(t.status==='active'||t.status==='preparing'){
-    actionsHtml=`<div class="mt-5 flex gap-2">
+    actionsHtml=`
+    <div class="mt-5 flex gap-2">
       <button onclick="setStatus('${tid}','billing')"
         class="flex-1 rounded-[18px] border border-[#E8D6C6] bg-white py-3 text-[13px] font-semibold text-[#2C1713]">
         รอชำระ
@@ -336,14 +388,23 @@ function showSheet(tid){
         class="flex-[1.6] rounded-[18px] py-3 text-[14px] font-bold text-white btn-red shadow-[0_10px_22px_rgba(225,39,23,0.28)]">
         ปิดบิล · ${fmtMoney(total)}
       </button>
-    </div>`;
+    </div>
+    <button onclick="cancelTable('${tid}')"
+      class="mt-2 w-full rounded-[18px] border border-red-200 bg-red-50 py-2.5 text-[12px] font-semibold text-red-600 hover:bg-red-100">
+      🚫 ยกเลิกโต๊ะ (ล้างออเดอร์ทั้งหมด)
+    </button>`;
   } else if(t.status==='billing'){
-    actionsHtml=`<div class="mt-5">
+    actionsHtml=`
+    <div class="mt-5">
       <button onclick="showBillConfirm('${tid}')"
         class="w-full rounded-[18px] py-3.5 text-[14px] font-bold text-white btn-red shadow-[0_10px_22px_rgba(225,39,23,0.28)]">
         ยืนยันปิดบิล · ${fmtMoney(total)}
       </button>
-    </div>`;
+    </div>
+    <button onclick="cancelTable('${tid}')"
+      class="mt-2 w-full rounded-[18px] border border-red-200 bg-red-50 py-2.5 text-[12px] font-semibold text-red-600 hover:bg-red-100">
+      🚫 ยกเลิกโต๊ะ (ล้างออเดอร์ทั้งหมด)
+    </button>`;
   }
 
   $('#sheet-content').html(`
@@ -387,6 +448,33 @@ function showSheet(tid){
 }
 
 function closeSheet(){ $('#overlay,#sheet').addClass('hidden'); selectedTableId=null; }
+
+function cancelTable(tid){
+  if(!confirm(
+    '🚫 ยกเลิกโต๊ะ ' + tid + '?\n\n' +
+    'ออเดอร์ทั้งหมดที่ยังไม่ได้ชำระจะถูกลบออก\n' +
+    'โต๊ะจะกลับเป็น "ว่าง" ทันที\n\n' +
+    'ยืนยันหรือไม่?'
+  )) return;
+
+  $.ajax({
+    url: 'api/table.php?id=' + encodeURIComponent(tid),
+    method: 'PATCH',
+    contentType: 'application/json',
+    data: JSON.stringify({ action: 'cancel' }),
+    success: function(){
+      closeSheet();
+      loadAll();
+      // แสดง toast
+      const toast = $('<div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[99] rounded-2xl bg-[#2C1713] px-5 py-3 text-[13px] font-semibold text-white shadow-xl">🚫 ยกเลิกโต๊ะ ' + tid + ' แล้ว</div>');
+      $('body').append(toast);
+      setTimeout(()=>toast.fadeOut(400,()=>toast.remove()), 2500);
+    },
+    error: function(r){
+      alert('ยกเลิกไม่สำเร็จ: ' + (r.responseJSON?.error || 'เกิดข้อผิดพลาด'));
+    }
+  });
+}
 
 function openTable(tid){
   const g=parseInt($('#guests-input').val())||1;

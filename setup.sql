@@ -49,13 +49,14 @@ INSERT IGNORE INTO `menu_categories` (`name`, `sort_order`) VALUES
 --  3. menu_items
 -- ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS `menu_items` (
-  `id`          varchar(100) NOT NULL,
-  `name`        varchar(255) NOT NULL,
-  `description` text DEFAULT NULL,
-  `price`       decimal(10,2) NOT NULL,
-  `category`    varchar(100) NOT NULL,
-  `tag`         varchar(20) DEFAULT NULL,
-  `image`       varchar(500) DEFAULT NULL,
+  `id`           varchar(100) NOT NULL,
+  `name`         varchar(255) NOT NULL,
+  `description`  text DEFAULT NULL,
+  `price`        decimal(10,2) NOT NULL,
+  `category`     varchar(100) NOT NULL,
+  `tag`          varchar(20) DEFAULT NULL,
+  `image`        varchar(500) DEFAULT NULL,
+  `is_available` tinyint(1) NOT NULL DEFAULT 1,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -199,7 +200,10 @@ CREATE TABLE IF NOT EXISTS `users` (
   KEY `idx_username` (`username`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-INSERT IGNORE INTO `users` (`id`, `username`, `password`, `name`, `role`, `is_active`, `created_at`) VALUES
+-- ลบ user เดิมแล้ว insert ใหม่ (เพื่อให้แน่ใจว่า password เป็น bcrypt hash ที่ถูกต้อง)
+-- password = "owner"  hash สร้างด้วย password_hash("owner", PASSWORD_BCRYPT, ['cost'=>10])
+DELETE FROM `users` WHERE `username` = 'owner';
+INSERT INTO `users` (`id`, `username`, `password`, `name`, `role`, `is_active`, `created_at`) VALUES
 ('user-owner', 'owner', '$2y$10$4Y9Yxsk.ZA5LHcSKwXEHCOLTFR7eG9SkTyqS4Y8Y5/jjqI.V8p.K6', 'เจ้าของร้าน', 'owner', 1, 1780000000000);
 
 -- ────────────────────────────────────────────────────────────
@@ -311,6 +315,21 @@ INSERT IGNORE INTO `bill_items` (`bill_id`, `menu_id`, `name`, `price`, `quantit
 ('BILL-1780502104666', 'menu-1780487691790', 'เเจ่วฮ้อนรวมเนื้อ',            399.00, 1, NULL),
 ('BILL-1780502104666', 'menu-1780487481033', 'เเจ่วฮ้อนรวมหมู',             299.00, 1, NULL),
 ('BILL-1780502104666', 'menu-1780487749030', 'เเจ่วฮ้อนรวมหมู+ทะเล',        399.00, 1, NULL);
+
+-- ────────────────────────────────────────────────────────────
+--  8. expenses (รายจ่าย)
+-- ────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `expenses` (
+  `id`          varchar(50)   NOT NULL,
+  `date`        date          NOT NULL,
+  `category`    varchar(50)   NOT NULL,
+  `description` varchar(255)  NOT NULL,
+  `amount`      decimal(10,2) NOT NULL,
+  `note`        text          DEFAULT NULL,
+  `created_at`  bigint(20)    NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_date` (`date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ────────────────────────────────────────────────────────────
 SET FOREIGN_KEY_CHECKS = 1;

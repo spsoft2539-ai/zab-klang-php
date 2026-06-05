@@ -31,6 +31,26 @@ if ($method === 'PATCH') {
         json_out(format_table(get_table($id)));
     }
 
+    // Cancel table (reset to available, delete pending orders)
+    if ($action === 'cancel') {
+        $t = get_table($id);
+        if (!$t || $t['status'] === 'available') json_out(['error' => 'table is not open'], 400);
+
+        // ลบ orders ทั้งหมดของโต๊ะนี้ (order_items ลบตาม CASCADE)
+        $stmt = db()->prepare("DELETE FROM orders WHERE table_id = ?");
+        $stmt->bind_param('s', $id);
+        $stmt->execute();
+
+        // รีเซ็ตโต๊ะกลับเป็นว่าง
+        $stmt2 = db()->prepare(
+            "UPDATE restaurant_tables SET status='available', opened_at=NULL, guests=NULL WHERE id=?"
+        );
+        $stmt2->bind_param('s', $id);
+        $stmt2->execute();
+
+        json_out(['ok' => true]);
+    }
+
     // Close table (generates bill)
     if ($action === 'close') {
         $pm  = $body['paymentMethod'] ?? null;

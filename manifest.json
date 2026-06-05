@@ -1,0 +1,45 @@
+{
+  "name": "แซ่บกลางซอย",
+  "short_name": "แซ่บกลางซอย",
+  "description": "ระบบจัดการร้านอาหาร แซ่บกลางซอย",
+  "start_url": "/index.php",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#FFF9F5",
+  "theme_color": "#E12717",
+  "lang": "th",
+  "icons": [
+    {
+      "src": "logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "แคชเชียร์",
+      "short_name": "แคชเชียร์",
+      "url": "/cashier.php",
+      "icons": [{ "src": "logo.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "ห้องครัว",
+      "short_name": "ครัว",
+      "url": "/kitchen.php",
+      "icons": [{ "src": "logo.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "url": "/dashboard.php",
+      "icons": [{ "src": "logo.png", "sizes": "96x96" }]
+    }
+  ]
+}

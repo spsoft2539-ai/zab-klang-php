@@ -4,6 +4,9 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>เข้าสู่ระบบ · แซ่บกลางซอย</title>
+<link rel="manifest" href="/manifest.json"/>
+<meta name="theme-color" content="#E12717"/>
+<link rel="apple-touch-icon" href="/logo.png"/>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
@@ -48,14 +51,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <div class="bg-white rounded-[28px] shadow-[0_20px_50px_rgba(44,23,19,0.12)] overflow-hidden">
 
     <!-- Header -->
-    <div class="bg-gradient-to-br from-[#FFE5DE] to-[#FFF0EE] px-8 pt-10 pb-8 text-center">
-      <div class="flex justify-center mb-4">
-        <div class="flex h-16 w-16 items-center justify-center rounded-2xl btn-red text-white text-3xl">
-          🔥
-        </div>
+    <div class="bg-gradient-to-br from-[#FFE5DE] to-[#FFF0EE] px-8 pt-8 pb-6 text-center">
+      <div class="flex justify-center mb-2">
+        <img src="logo.png" alt="แซ่บกลางซอย" class="w-[140px] h-[140px] object-contain drop-shadow-lg"/>
       </div>
-      <h1 class="text-[22px] font-bold text-[#2C1713]">แซ่บกลางซอย</h1>
-      <p class="mt-2 text-[13px] text-[#9D7F6A]">ระบบจัดการร้านอาหาร</p>
+      <p class="mt-1 text-[13px] text-[#9D7F6A]">ระบบจัดการร้านอาหาร</p>
     </div>
 
     <!-- Form -->

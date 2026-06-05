@@ -6,16 +6,24 @@ require_once __DIR__ . '/../db.php';
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
-    $rows = db()->query('SELECT * FROM menu_items ORDER BY category, name')->fetch_all(MYSQLI_ASSOC);
+    // ?all=1 → dashboard (แสดงทั้งหมดรวมที่ปิด)
+    // ไม่มี all  → customer menu (แสดงแค่ที่เปิด)
+    $showAll = isset($_GET['all']) && $_GET['all'] === '1';
+    $sql = $showAll
+        ? 'SELECT * FROM menu_items ORDER BY category, name'
+        : 'SELECT * FROM menu_items WHERE is_available=1 ORDER BY category, name';
+
+    $rows = db()->query($sql)->fetch_all(MYSQLI_ASSOC);
     json_out(array_map(fn($r) => [
-        'id'          => $r['id'],
-        'name'        => $r['name'],
-        'description' => $r['description'] ?? '',
-        'price'       => (float)$r['price'],
-        'category'    => $r['category'],
-        'tag'         => $r['tag'],
-        'image'       => $r['image'] ?? '',
-        'options'     => get_menu_options($r['id']),
+        'id'           => $r['id'],
+        'name'         => $r['name'],
+        'description'  => $r['description'] ?? '',
+        'price'        => (float)$r['price'],
+        'category'     => $r['category'],
+        'tag'          => $r['tag'],
+        'image'        => $r['image'] ?? '',
+        'is_available' => (bool)($r['is_available'] ?? true),
+        'options'      => get_menu_options($r['id']),
     ], $rows));
 }
 

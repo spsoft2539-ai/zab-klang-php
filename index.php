@@ -1,7 +1,7 @@
 ﻿<?php
 require_once 'auth.php';
 requireAuth();
-
+$user = getCurrentUser();
 // Landing Page — แซ่บกลางซอย
 ?><!DOCTYPE html>
 <html lang="th">
@@ -9,20 +9,35 @@ requireAuth();
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
 <title>แซ่บกลางซอย</title>
+<link rel="manifest" href="/manifest.json"/>
+<meta name="theme-color" content="#E12717"/>
+<link rel="apple-touch-icon" href="/logo.png"/>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <style>body{font-family:'Sarabun',sans-serif;padding-bottom:env(safe-area-inset-bottom);}.btn-red{background:linear-gradient(135deg,#FF5546,#F23A2B,#C41E0E);}</style>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 </head>
-<body class="flex min-h-screen flex-col items-center justify-center bg-[#FFF9F5] px-5 py-16">
+<body class="flex min-h-screen flex-col items-center justify-center bg-[#FFF9F5] px-5 pt-24 pb-12">
+
+  <!-- User bar -->
+  <div class="fixed top-0 right-0 left-0 flex items-center justify-between px-5 py-3 bg-white/80 backdrop-blur-md border-b border-[#F0E0D4] z-10">
+    <span class="text-[12px] text-[#9D7F6A]">👤 <?= htmlspecialchars($user['name']) ?>
+      <span class="ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold text-white
+        <?= $user['role']==='owner'?'bg-red-600':($user['role']==='manager'?'bg-amber-600':'bg-blue-600') ?>">
+        <?= $user['role']==='owner'?'เจ้าของ':($user['role']==='manager'?'ผู้จัดการ':'พนักงาน') ?>
+      </span>
+    </span>
+    <a href="logout.php" onclick="return confirm('ออกจากระบบ?')"
+      class="flex items-center gap-1 rounded-xl border border-[#F0E0D4] bg-[#F7F3EF] px-3 py-1.5 text-[11px] font-medium text-[#7C5B47] hover:bg-red-50 hover:text-red-600 hover:border-red-200">
+      🚪 ออกจากระบบ
+    </a>
+  </div>
 
   <!-- Brand -->
-  <div class="mb-12 text-center">
-    <div class="mx-auto mb-5 flex h-[88px] w-[88px] items-center justify-center rounded-[30px] btn-red shadow-[0_20px_48px_rgba(225,39,23,0.38)]">
-      <svg xmlns="http://www.w3.org/2000/svg" class="text-white" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
-    </div>
-    <h1 class="text-[30px] font-bold tracking-tight text-[#2C1713]">แซ่บกลางซอย</h1>
-    <p class="mt-1.5 text-[13px] text-[#A98671]">อีสาน · ซีฟู้ด · หมูกระทะ</p>
+  <div class="mb-10 text-center">
+    <img src="logo.png" alt="แซ่บกลางซอย"
+      class="mx-auto mb-2 w-[180px] h-[180px] object-contain drop-shadow-xl"/>
+    <p class="mt-1 text-[13px] text-[#A98671]">อีสาน · ซีฟู้ด · หมูกระทะ</p>
   </div>
 
   <!-- Cards -->
@@ -79,7 +94,8 @@ requireAuth();
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-white/40" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
     </a>
 
-    <!-- Dashboard card -->
+    <?php if ($user['role'] !== 'staff'): ?>
+    <!-- Dashboard card — owner / manager only -->
     <a href="dashboard.php" class="flex items-center gap-4 rounded-[24px] border border-[#D4E4CC] bg-gradient-to-br from-[#F0F7EC] to-[#E4F0DC] p-5 text-[#2D5A1B] shadow-[0_8px_24px_rgba(45,90,27,0.10)] transition-transform active:scale-[0.98] block">
       <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#2D5A1B]/10">
         <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-[#2D5A1B]"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
@@ -88,7 +104,7 @@ requireAuth();
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-[#4A7A35]/50" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
     </a>
 
-    <!-- Accounting card -->
+    <!-- Accounting card — owner / manager only -->
     <a href="accounting.php" class="flex items-center gap-4 rounded-[24px] border border-[#D4E4CC] bg-gradient-to-br from-[#F0F7EC] to-[#E4F0DC] p-5 text-[#2D5A1B] shadow-[0_8px_24px_rgba(45,90,27,0.10)] transition-transform active:scale-[0.98] block">
       <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#2D5A1B]/10">
         <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-[#2D5A1B]"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/></svg>
@@ -96,12 +112,19 @@ requireAuth();
       <div class="flex-1"><p class="text-[15px] font-semibold">นักบัญชี</p><p class="text-[12px] text-[#4A7A35]/80">รายรับ · ประวัติบิล · รายงาน</p></div>
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-[#4A7A35]/50" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
     </a>
+    <?php endif; ?>
 
   </div>
 
   <p class="mt-10 text-[11px] text-[#C4A98A]">แซ่บกลางซอย · ระบบสั่งอาหาร v1.0 PHP</p>
 
 <script>
+// Register Service Worker (PWA)
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/service-worker.js')
+    .catch(err => console.log('SW:', err));
+}
+
 function goToTable(id) {
   var t = id || $('#tableInput').val().trim().toUpperCase();
   if (t) window.location.href = 'menu.php?table=' + encodeURIComponent(t);

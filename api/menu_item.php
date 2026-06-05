@@ -21,13 +21,14 @@ if ($method === 'PATCH') {
     $cat   = $body['category']    ?? $item['category'];
     $tag   = array_key_exists('tag', $body) ? $body['tag'] : $item['tag'];
     $img   = $body['image']       ?? $item['image'];
+    $avail = array_key_exists('is_available', $body) ? (int)(bool)$body['is_available'] : (int)($item['is_available'] ?? 1);
 
     $stmt = db()->prepare(
-        'UPDATE menu_items SET name=?,description=?,price=?,category=?,tag=?,image=? WHERE id=?'
+        'UPDATE menu_items SET name=?,description=?,price=?,category=?,tag=?,image=?,is_available=? WHERE id=?'
     );
-    $stmt->bind_param('ssdssss', $name, $desc, $price, $cat, $tag, $img, $id);
+    $stmt->bind_param('ssdsssis', $name, $desc, $price, $cat, $tag, $img, $avail, $id);
     $stmt->execute();
-    json_out(['id'=>$id,'name'=>$name,'description'=>$desc,'price'=>$price,'category'=>$cat,'tag'=>$tag,'image'=>$img]);
+    json_out(['id'=>$id,'name'=>$name,'description'=>$desc,'price'=>$price,'category'=>$cat,'tag'=>$tag,'image'=>$img,'is_available'=>(bool)$avail]);
 }
 
 if ($method === 'DELETE') {
