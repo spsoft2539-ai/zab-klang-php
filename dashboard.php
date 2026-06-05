@@ -741,82 +741,140 @@ function toggleBill(id){
    TAB: เมนู
 ══════════════════════════════════════════════ */
 let menuActiveCategory = 'ทั้งหมด';
+let menuSearch = '';
 
 function renderMenuTab(){
   const cats = ['ทั้งหมด', ...new Set(menuItems.map(m=>m.category))];
-  const filtered = menuActiveCategory==='ทั้งหมด' ? menuItems : menuItems.filter(m=>m.category===menuActiveCategory);
+  let filtered = menuActiveCategory==='ทั้งหมด' ? menuItems : menuItems.filter(m=>m.category===menuActiveCategory);
+  if(menuSearch) filtered = filtered.filter(m=>m.name.toLowerCase().includes(menuSearch.toLowerCase()));
 
-  const catTabsHtml = cats.map(c=>`
-    <button data-mcat="${c}" type="button"
-      class="menu-cat-tab shrink-0 rounded-full px-3.5 py-1.5 text-[12px] font-medium transition-colors
-        ${c===menuActiveCategory?'btn-red text-white shadow-[0_4px_10px_rgba(225,39,23,0.25)]':'bg-white text-[#7C5B47] ring-1 ring-[#F0E0D4]'}">
+  const totalOpen   = menuItems.filter(m=>m.is_available!==false).length;
+  const totalClosed = menuItems.filter(m=>m.is_available===false).length;
+
+  const catTabsHtml = cats.map(c=>{
+    const count = c==='ทั้งหมด' ? menuItems.length : menuItems.filter(m=>m.category===c).length;
+    const closedCount = c==='ทั้งหมด'
+      ? menuItems.filter(m=>m.is_available===false).length
+      : menuItems.filter(m=>m.category===c&&m.is_available===false).length;
+    const active = c===menuActiveCategory;
+    return `<button data-mcat="${c}" type="button"
+      class="menu-cat-tab shrink-0 flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12px] font-medium transition-colors
+        ${active?'btn-red text-white shadow-[0_4px_10px_rgba(225,39,23,0.25)]':'bg-white text-[#7C5B47] ring-1 ring-[#F0E0D4]'}">
       ${c}
-      ${c!=='ทั้งหมด'?`<span class="ml-1 tabular-nums ${c===menuActiveCategory?'text-white/70':'text-[#9D7F6A]'}">${menuItems.filter(m=>m.category===c).length}</span>`:''}
-    </button>`).join('');
+      <span class="tabular-nums ${active?'text-white/80':'text-[#9D7F6A]'}">${count}</span>
+      ${closedCount>0?`<span class="inline-flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">${closedCount}</span>`:''}
+    </button>`;
+  }).join('');
 
-  const gridHtml = !filtered.length
-    ? `<div class="col-span-full rounded-[20px] border border-dashed border-[#E8D6C6] bg-white py-10 text-center text-[#9D7F6A]">ไม่มีเมนู</div>`
-    : filtered.map(item=>{
-        const avail = item.is_available !== false;
-        const tagMap={'เผ็ด':'bg-red-50 text-red-600','ฮิต':'bg-green-50 text-green-700','โปร':'bg-amber-50 text-amber-700'};
-        const tagHtml=item.tag?`<span class="shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${tagMap[item.tag]||''}">${item.tag}</span>`:'';
-        // encode item data for edit button
-        const itemJson = encodeURIComponent(JSON.stringify(item));
-        return `<div class="flex gap-3 rounded-[18px] p-3 ring-1 transition-all ${avail?'bg-white ring-[#F0E0D4]':'bg-gray-50 ring-gray-200 opacity-60'}">
-          <div class="relative shrink-0">
-            <img src="${item.image||'https://placehold.co/64x64/F7EFE7/9D7F6A?text=🍽'}" class="h-16 w-16 rounded-xl object-cover"/>
-            ${!avail?'<div class="absolute inset-0 flex items-center justify-center rounded-xl bg-black/40"><span class="text-white text-[9px] font-bold">หมด</span></div>':''}
-          </div>
-          <div class="min-w-0 flex-1">
-            <div class="flex items-start justify-between gap-1">
-              <p class="line-clamp-1 text-[13px] font-semibold ${avail?'text-[#2C1713]':'text-gray-400 line-through'}">${item.name}</p>
-              ${tagHtml}
+  // จัดกลุ่มตาม category
+  const groupedHtml = (() => {
+    if(!filtered.length) return `<div class="rounded-[20px] border border-dashed border-[#E8D6C6] bg-white py-12 text-center text-[#9D7F6A]">ไม่พบเมนู</div>`;
+
+    const groups = menuActiveCategory !== 'ทั้งหมด'
+      ? {[menuActiveCategory]: filtered}
+      : filtered.reduce((g,m)=>{ (g[m.category]=g[m.category]||[]).push(m); return g; }, {});
+
+    return Object.entries(groups).map(([cat, items])=>`
+      <div class="mb-5">
+        ${menuActiveCategory==='ทั้งหมด'?`
+          <div class="flex items-center gap-2 mb-2 px-1">
+            <span class="text-[11px] font-bold uppercase tracking-widest text-[#9D7F6A]">${cat}</span>
+            <span class="text-[10px] text-[#C4A98A]">${items.length} รายการ</span>
+            <div class="flex-1 h-px bg-[#F0E0D4]"></div>
+          </div>`:''}
+        <div class="rounded-[20px] bg-white ring-1 ring-[#F0E0D4] overflow-hidden">
+          ${items.map((item, idx)=>{
+            const avail = item.is_available !== false;
+            const tagMap={'เผ็ด':'bg-red-50 text-red-600','ฮิต':'bg-green-50 text-green-700','โปร':'bg-amber-50 text-amber-700'};
+            const tagHtml = item.tag?`<span class="rounded-full px-1.5 py-0.5 text-[9px] font-bold ${tagMap[item.tag]||''}">${item.tag}</span>`:'';
+            const itemJson = encodeURIComponent(JSON.stringify(item));
+            const isLast = idx === items.length-1;
+            return `
+            <div class="flex items-center gap-3 px-4 py-3 ${!isLast?'border-b border-[#F7F0E8]':''} ${!avail?'bg-gray-50/60':'hover:bg-[#FFF9F5]'} transition-colors">
+              <!-- รูป -->
+              <div class="relative shrink-0">
+                <img src="${item.image||'https://placehold.co/48x48/F7EFE7/9D7F6A?text=🍽'}"
+                  class="h-12 w-12 rounded-xl object-cover ${!avail?'grayscale opacity-50':''}"/>
+              </div>
+
+              <!-- ชื่อ + ราคา -->
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <p class="text-[13px] font-semibold truncate ${!avail?'text-gray-400 line-through':'text-[#2C1713]'}">${item.name}</p>
+                  ${tagHtml}
+                  ${!avail?'<span class="rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-bold text-red-600">ปิด</span>':''}
+                </div>
+                <p class="text-[14px] font-bold tabular-nums ${!avail?'text-gray-400':'text-[#E12717]'}">฿${item.price.toLocaleString()}</p>
+              </div>
+
+              <!-- Actions -->
+              <div class="flex items-center gap-1 shrink-0">
+                <!-- Toggle -->
+                <button onclick="toggleMenuAvailable('${item.id}',${avail})" title="${avail?'คลิกเพื่อปิดเมนู':'คลิกเพื่อเปิดเมนู'}"
+                  class="h-8 w-8 flex items-center justify-center rounded-lg transition-colors
+                    ${avail?'bg-emerald-50 text-emerald-600 hover:bg-emerald-100':'bg-gray-100 text-gray-400 hover:bg-gray-200'}">
+                  ${avail?'✅':'🔴'}
+                </button>
+                <!-- ตัวเลือก -->
+                <button onclick="toggleOptions('${item.id}')" title="ตัวเลือก/วาไรตี้"
+                  class="h-8 w-8 flex items-center justify-center rounded-lg bg-[#F7F3EF] text-[#7C5B47] hover:bg-[#EFE8E0] transition-colors text-[13px]">
+                  ⚙️
+                </button>
+                <!-- แก้ไข -->
+                <button onclick="showEditMenu(decodeURIComponent('${itemJson}'))" title="แก้ไขเมนู"
+                  class="h-8 w-8 flex items-center justify-center rounded-lg bg-[#F7F3EF] text-[#5A4338] hover:bg-[#EFE8E0] transition-colors text-[13px]">
+                  ✏️
+                </button>
+                <!-- ลบ -->
+                <button onclick="deleteMenuItem('${item.id}','${item.name.replace(/'/g,"\\'")}')" title="ลบเมนู"
+                  class="h-8 w-8 flex items-center justify-center rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-colors text-[13px]">
+                  🗑
+                </button>
+              </div>
             </div>
-            <p class="mt-0.5 line-clamp-1 text-[11px] text-[#9D7F6A]">${item.description||''}</p>
-            <div class="mt-2 flex items-center justify-between">
-              <span class="rounded-lg bg-[#F7EFE7] px-2 py-0.5 text-[10px] font-medium text-[#7C5B47]">${item.category}</span>
-              <span class="text-[14px] font-bold text-[#E12717] tabular-nums">฿${item.price.toLocaleString()}</span>
-            </div>
-            <!-- Toggle + Edit + Delete -->
-            <div class="mt-2.5 flex gap-1.5">
-              <button onclick="toggleMenuAvailable('${item.id}',${avail})"
-                class="flex flex-1 items-center justify-center gap-1 rounded-lg py-1.5 text-[11px] font-bold border transition-colors
-                  ${avail
-                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                    : 'border-gray-200 bg-gray-100 text-gray-500 hover:bg-gray-200'}">
-                ${avail ? '✅ เปิดอยู่' : '🔴 ปิดอยู่'}
-              </button>
-              <button onclick="showEditMenu(decodeURIComponent('${itemJson}'))"
-                class="flex items-center justify-center gap-1 rounded-lg border border-[#E8D6C6] bg-[#F7F3EF] px-2.5 py-1.5 text-[11px] font-semibold text-[#5A4338] hover:bg-[#EFE8E0]">
-                ✏️
-              </button>
-              <button onclick="deleteMenuItem('${item.id}','${item.name.replace(/'/g,"\\'")}')"
-                class="flex items-center justify-center gap-1 rounded-lg border border-red-100 bg-red-50 px-2.5 py-1.5 text-[11px] font-semibold text-red-600 hover:bg-red-100">
-                🗑
-              </button>
-            </div>
-            <button onclick="toggleOptions('${item.id}')"
-              class="mt-1.5 w-full flex items-center justify-center gap-1 rounded-lg border border-[#E8D6C6] bg-white py-1.5 text-[11px] font-semibold text-[#7C5B47] hover:bg-[#FFF9F5]">
-              ⚙️ ตัวเลือก (เผ็ด/โปรตีน/เพิ่มเติม)
-            </button>
-            <div id="opts-${item.id}" class="hidden mt-2 rounded-xl bg-[#FFF9F5] p-3 ring-1 ring-[#F0E0D4]"></div>
-          </div>
-        </div>`;
-      }).join('');
+            <!-- Options panel -->
+            <div id="opts-${item.id}" class="hidden border-t border-[#F0E0D4] bg-[#FFF9F5] px-4 py-3"></div>`;
+          }).join('')}
+        </div>
+      </div>`).join('');
+  })();
 
   $('#tab-content').html(`
+    <!-- Header -->
     <div class="flex items-center justify-between mb-4">
       <div>
         <h2 class="text-[18px] font-bold text-[#2C1713]">จัดการเมนู</h2>
-        <p class="text-[12px] text-[#9D7F6A]">${menuItems.length} รายการ · ${cats.length-1} หมวดหมู่</p>
+        <div class="flex items-center gap-2 mt-0.5">
+          <span class="text-[11px] text-emerald-600 font-medium">✅ เปิด ${totalOpen}</span>
+          <span class="text-[#C4A98A]">·</span>
+          ${totalClosed>0?`<span class="text-[11px] text-red-500 font-medium">🔴 ปิด ${totalClosed}</span><span class="text-[#C4A98A]">·</span>`:''}
+          <span class="text-[11px] text-[#9D7F6A]">ทั้งหมด ${menuItems.length}</span>
+        </div>
       </div>
-      <button onclick="showAddMenu()" class="flex h-9 items-center gap-1.5 rounded-xl px-4 text-[12px] font-semibold text-white btn-red">+ เพิ่มเมนู</button>
+      <button onclick="showAddMenu()" class="flex h-9 items-center gap-1.5 rounded-xl px-4 text-[12px] font-semibold text-white btn-red">
+        + เพิ่มเมนู
+      </button>
     </div>
-    <div id="add-menu-area"></div>
-    <!-- Category filter -->
+
+    <!-- Search -->
+    <div class="relative mb-3">
+      <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9D7F6A] text-[14px]">🔍</span>
+      <input id="menu-search" value="${escHtml(menuSearch)}" placeholder="ค้นหาชื่อเมนู..."
+        oninput="menuSearch=this.value; renderMenuTab()"
+        class="w-full rounded-xl border border-[#F0E0D4] bg-white pl-9 pr-4 py-2.5 text-[13px] outline-none focus:border-[#E12717]"/>
+      ${menuSearch?`<button onclick="menuSearch=''; renderMenuTab()" class="absolute right-3 top-1/2 -translate-y-1/2 text-[#9D7F6A] hover:text-[#E12717]">✕</button>`:''}
+    </div>
+
+    <!-- Category tabs -->
     <div class="flex gap-2 overflow-x-auto pb-2 mb-4" style="scrollbar-width:none">${catTabsHtml}</div>
-    <!-- Grid -->
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">${gridHtml}</div>
+
+    <!-- Legend -->
+    <div class="flex items-center gap-4 mb-3 px-1">
+      <span class="text-[10px] text-[#9D7F6A]">✅ = เปิดขาย &nbsp; 🔴 = ปิด/หมด &nbsp; ⚙️ = ตัวเลือก &nbsp; ✏️ = แก้ไข &nbsp; 🗑 = ลบ</span>
+    </div>
+
+    <div id="add-menu-area"></div>
+    ${groupedHtml}
   `);
 }
 
