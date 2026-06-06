@@ -1,4 +1,4 @@
-<?php require_once "auth.php"; requireAuth(); $user = getCurrentUser(); ?>
+<?php require_once "auth.php"; requireAuth(); ?>
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -34,63 +34,18 @@ body{font-family:'Sarabun',sans-serif;background:#F7F3EF;}
 .qr-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);z-index:60;display:flex;align-items:center;justify-content:center;padding:20px;}
 .qr-box{background:#fff;border-radius:28px;padding:28px 24px 24px;max-width:340px;width:100%;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,0.3);}
 /* Cashier menu picker panel (slides in from right) */
-.picker-panel{position:fixed;top:0;right:0;height:100%;width:min(100%,480px);z-index:61;
+.picker-panel{position:fixed;top:0;right:0;height:100%;width:min(100%,640px);z-index:61;
   background:#fff;box-shadow:-20px 0 50px rgba(0,0,0,0.18);
-  display:flex;flex-direction:column;
+  display:flex;flex-direction:column;overflow:hidden;
   transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);}
 .picker-panel.open{transform:translateX(0);}
-/* Print: thermal 80mm optimized */
+.picker-cat-active{background:linear-gradient(135deg,#FF5546,#F23A2B,#C41E0E);color:#fff;}
+.picker-tile-in{ring:1px solid rgba(225,39,23,0.4);}
+/* Print: show only QR content */
 @media print{
   body > *:not(#print-area){display:none!important;}
-  #print-area{display:block!important;position:static;padding:4mm 3mm;}
-
-  /* ── Thermal font optimization ── */
-  #print-area, #print-area * {
-    font-family: 'Sarabun', 'TH Sarabun New', sans-serif !important;
-    font-size: 13px !important;
-    font-weight: 600 !important;
-    letter-spacing: 0.2px !important;
-    line-height: 1.55 !important;
-    color: #000 !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-
-  /* หัวข้อใหญ่ */
-  #print-area h1, #print-area h2,
-  #print-area .receipt-title {
-    font-size: 16px !important;
-    font-weight: 700 !important;
-    letter-spacing: 0.4px !important;
-  }
-
-  /* ยอดรวม */
-  #print-area .receipt-total,
-  #print-area .total-amount {
-    font-size: 15px !important;
-    font-weight: 700 !important;
-  }
-
-  /* รายการอาหาร */
-  #print-area .receipt-item {
-    font-size: 12px !important;
-    font-weight: 600 !important;
-  }
-
-  /* เส้นแบ่ง */
-  #print-area hr {
-    border: none !important;
-    border-top: 1px dashed #000 !important;
-    margin: 2mm 0 !important;
-  }
-
-  /* QR Code */
-  #print-area canvas,
-  #print-area img {
-    max-width: 62mm !important;
-    height: auto !important;
-    image-rendering: crisp-edges !important;
-  }
+  #print-area{display:block!important;position:static;padding:20px;}
+  #print-area canvas,#print-area img{max-width:200px!important;}
 }
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet"/>
@@ -109,15 +64,15 @@ body{font-family:'Sarabun',sans-serif;background:#F7F3EF;}
     </div>
   </div>
   <div class="flex items-center gap-2 shrink-0">
+    <button onclick="showManualBillPicker()"
+      class="flex h-9 items-center gap-1.5 rounded-xl bg-[#E12717] px-3 text-[12px] font-semibold text-white shadow-[0_4px_10px_rgba(225,39,23,0.3)]">
+      🧾 Walk-in
+    </button>
     <button id="refreshBtn" class="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F7F3EF] text-[#4A3728]">
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
     </button>
     <a href="kitchen.php" class="flex h-9 items-center gap-1.5 rounded-xl bg-[#F7F3EF] px-3 text-[12px] font-medium text-[#4A3728]">
       🍳 ครัว
-    </a>
-    <a href="logout.php" onclick="return confirm('ออกจากระบบ?')"
-      class="flex h-9 items-center gap-1 rounded-xl border border-[#F0E0D4] bg-[#F7F3EF] px-3 text-[12px] font-medium text-[#7C5B47] hover:bg-red-50 hover:text-red-600">
-      🚪
     </a>
   </div>
 </nav>
@@ -200,46 +155,79 @@ body{font-family:'Sarabun',sans-serif;background:#F7F3EF;}
 <!-- ───── Cashier Menu Picker Panel ───── -->
 <div id="picker-overlay" class="overlay hidden" style="z-index:60;" onclick="closePicker()"></div>
 <div id="picker-panel" class="picker-panel">
-  <!-- Header -->
-  <div class="flex shrink-0 items-center gap-3 border-b border-[#F0E0D4] bg-white px-5 py-4">
-    <button onclick="closePicker()" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#F7F3EF] text-[#4A3728]">
-      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+
+  <!-- ── Header ── -->
+  <div class="shrink-0 flex items-center gap-2.5 border-b border-[#F0E0D4] bg-white px-4 py-3">
+    <button onclick="closePicker()"
+      class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#F7F3EF] text-[#4A3728]">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
     </button>
-    <div class="flex-1 min-w-0">
-      <p class="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9D7F6A]">เพิ่มรายการ · โต๊ะ <span id="picker-table-label"></span></p>
-      <h2 class="text-[15px] font-semibold text-[#2C1713]">เลือกเมนูส่งครัว</h2>
+    <div class="min-w-0">
+      <p class="text-[9px] font-semibold uppercase tracking-[0.2em] text-[#9D7F6A] leading-none">เพิ่มรายการ</p>
+      <p class="text-[14px] font-bold text-[#2C1713] leading-tight">โต๊ะ <span id="picker-table-label"></span></p>
+    </div>
+    <div class="flex-1"></div>
+    <!-- Search -->
+    <div class="flex h-9 items-center gap-2 rounded-xl bg-[#F7F3EF] px-3 w-[170px] shrink-0">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 text-[#9D7F6A]"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="picker-search" type="text" placeholder="ค้นหาเมนู..."
+        class="flex-1 bg-transparent text-[12px] text-[#2C1713] placeholder:text-[#C4A98A] outline-none min-w-0"/>
     </div>
   </div>
-  <!-- Search + categories -->
-  <div class="shrink-0 space-y-3 border-b border-[#F0E0D4] bg-white px-5 pb-3 pt-3">
-    <div class="flex h-10 items-center gap-2.5 rounded-2xl bg-[#F7F3EF] px-3.5">
-      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 text-[#9D7F6A]"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-      <input id="picker-search" type="text" placeholder="ค้นหาเมนู..." class="flex-1 bg-transparent text-[13px] text-[#2C1713] placeholder:text-[#C4A98A] outline-none"/>
+
+  <!-- ── Body: Sidebar + Grid ── -->
+  <div class="flex flex-1 overflow-hidden min-h-0">
+
+    <!-- Category Sidebar -->
+    <div id="picker-sidebar"
+      class="w-[90px] shrink-0 overflow-y-auto no-scroll bg-[#FAF6F2] border-r border-[#EDE0D4] py-2 px-1.5 space-y-1">
     </div>
-    <div id="picker-cats" class="flex gap-2 overflow-x-auto no-scroll pb-0.5"></div>
+
+    <!-- Menu Grid -->
+    <div id="picker-items" class="flex-1 overflow-y-auto no-scroll bg-[#F7F3EF]/60"></div>
+
   </div>
-  <!-- Menu item list -->
-  <div id="picker-items" class="flex-1 overflow-y-auto px-5 py-4 space-y-2"></div>
-  <!-- Footer: cart summary + submit -->
-  <div class="shrink-0 border-t border-[#F0E0D4] bg-white px-5 py-4">
-    <div id="picker-cart-info" class="hidden mb-3 rounded-[16px] bg-[#FFF9F5] px-4 py-3 ring-1 ring-[#F0E0D4]">
+
+  <!-- ── Footer: cart + submit ── -->
+  <div class="shrink-0 border-t border-[#F0E0D4] bg-white px-4 py-3">
+    <div id="picker-cart-info" class="hidden mb-3 rounded-[16px] bg-[#FFF9F5] px-4 py-3 ring-1 ring-[#F0E0D4] max-h-[110px] overflow-y-auto no-scroll">
       <div id="picker-cart-items" class="space-y-1 text-[12px] text-[#2C1713] mb-2"></div>
       <div class="flex justify-between items-center pt-2 border-t border-dashed border-[#F0E0D4]">
         <span class="text-[12px] font-semibold text-[#2C1713]">รวม</span>
         <span id="picker-cart-total" class="text-[14px] font-bold text-[#E12717] tabular-nums"></span>
       </div>
     </div>
-    <button id="picker-submit-btn" onclick="pickerSubmit()" disabled
+    <!-- Walk-in payment fields (hidden in normal table mode) -->
+    <div id="picker-manual-pay" class="hidden mb-3 space-y-2">
+      <div class="flex gap-2">
+        <select id="picker-pay-method"
+          class="flex-1 rounded-xl border border-[#F0E0D4] px-3 py-2.5 text-[13px] outline-none focus:border-[#E12717]">
+          <option value="cash">💵 เงินสด</option>
+          <option value="transfer">🏦 โอนเงิน / QR</option>
+        </select>
+        <input id="picker-cash-received" type="number" min="0" step="1" placeholder="รับเงินมา (บาท)"
+          class="flex-1 rounded-xl border border-[#F0E0D4] px-3 py-2.5 text-[13px] outline-none focus:border-[#E12717]"/>
+      </div>
+    </div>
+    <button id="picker-submit-btn" onclick="pickerSubmitDispatch()" disabled
       class="w-full rounded-[18px] py-3.5 text-[14px] font-bold text-white btn-red opacity-40 shadow-[0_10px_22px_rgba(225,39,23,0.28)] transition-opacity">
       ส่งออเดอร์ให้ครัว
     </button>
   </div>
+
 </div>
 
 <script>
-const VAT_RATE = 0.07;
 let tables=[], orders=[], menuItems=[], settings={};
 let activeZone='all', selectedTableId=null;
+
+function vatRate(){ return (parseFloat(settings.vatRate)||0)/100; }
+function svcRate(){ return (parseFloat(settings.serviceCharge)||0)/100; }
+function calcTotals(sub){
+  const vat = Math.round(sub * vatRate());
+  const svc = Math.round(sub * svcRate());
+  return { sub, vat, svc, total: sub + vat + svc };
+}
 
 function fmtMoney(n){ return '฿'+Number(n).toLocaleString('th-TH'); }
 function escHtml(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -247,6 +235,7 @@ function escHtml(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&l
 /* ─── Picker state ─── */
 let pickerTid=null, pickerActiveCat='ทั้งหมด', pickerSearch='';
 let pickerCart={}; // {cartKey:{item,qty,note,cartKey,displayName,finalPrice}}
+let pickerManual=false; // true = walk-in/manual bill mode
 /* ─── Picker Options Modal state ─── */
 let pickerOptItem=null, pickerOptSel={}; // current item + selected options
 
@@ -299,7 +288,7 @@ function renderGrid(){
       const s=S[t.status]||S.available;
       const tableOrds=orders.filter(o=>o.tableId===t.id);
       const amt=tableOrds.reduce((sum,o)=>sum+o.items.reduce((ss,i)=>ss+i.price*i.quantity,0),0);
-      const vat=Math.round(amt*VAT_RATE);
+      const {vat,svc}=calcTotals(amt);
       return `<button type="button" data-tid="${t.id}" onclick="showSheet('${t.id}')"
         class="table-card rounded-[20px] p-4 text-left ${s.card} shadow-[0_4px_16px_rgba(44,23,19,0.07)] cursor-pointer">
         <div class="flex items-start justify-between gap-1.5 mb-2.5">
@@ -310,7 +299,7 @@ function renderGrid(){
         </div>
         <p class="text-[11px] text-[#9D7F6A]">โซน ${t.zone} · ${t.seats} ที่${t.guests?' · '+t.guests+' คน':''}</p>
         ${t.openedAt?`<p class="text-[10px] text-[#C8A48B] tabular-nums mt-0.5">เปิด ${t.openedAt}</p>`:''}
-        ${amt>0?`<p class="text-[13px] font-bold text-[#E12717] tabular-nums mt-1.5">${fmtMoney(amt+vat)}</p>`:''}
+        ${amt>0?`<p class="text-[13px] font-bold text-[#E12717] tabular-nums mt-1.5">${fmtMoney(amt+vat+svc)}</p>`:''}
       </button>`;
     }).join(''));
   }
@@ -329,7 +318,8 @@ function showSheet(tid){
   const tableOrds=orders.filter(o=>o.tableId===tid);
   const allItems=[]; tableOrds.forEach(o=>o.items.forEach(i=>allItems.push({...i,orderId:o.id})));
   const subtotal=allItems.reduce((sum,i)=>sum+i.price*i.quantity,0);
-  const vat=Math.round(subtotal*VAT_RATE); const total=subtotal+vat;
+  const {vat:vat2,svc:svc2,total:total2}=calcTotals(subtotal);
+  const vat=vat2, svc=svc2, total=total2;
 
   const itemsHtml = allItems.length
     ? `<div class="divide-y divide-[#F7EFE7]">${allItems.map(i=>`
@@ -356,7 +346,8 @@ function showSheet(tid){
   const billHtml = subtotal>0 ? `
     <div class="mt-4 rounded-[18px] bg-[#FFF9F5] p-4 ring-1 ring-[#F0E0D4] space-y-1.5">
       <div class="flex justify-between text-[12px] text-[#9D7F6A]"><span>ยอดอาหาร</span><span class="tabular-nums">${fmtMoney(subtotal)}</span></div>
-      <div class="flex justify-between text-[12px] text-[#9D7F6A]"><span>VAT 7%</span><span class="tabular-nums">${fmtMoney(vat)}</span></div>
+      ${vat>0?`<div class="flex justify-between text-[12px] text-[#9D7F6A]"><span>VAT ${settings.vatRate||0}%</span><span class="tabular-nums">${fmtMoney(vat)}</span></div>`:''}
+      ${svc>0?`<div class="flex justify-between text-[12px] text-[#9D7F6A]"><span>Service Charge ${settings.serviceCharge||0}%</span><span class="tabular-nums">${fmtMoney(svc)}</span></div>`:''}
       <div class="flex justify-between pt-1.5 border-t border-dashed border-[#E8D6C6]">
         <span class="text-[14px] font-bold text-[#2C1713]">รวมต้องชำระ</span>
         <span class="text-[18px] font-extrabold text-[#E12717] tabular-nums">${fmtMoney(total)}</span>
@@ -378,33 +369,23 @@ function showSheet(tid){
       </div>
     </div>`;
   } else if(t.status==='active'||t.status==='preparing'){
-    actionsHtml=`
-    <div class="mt-5 flex gap-2">
-      <button onclick="setStatus('${tid}','billing')"
-        class="flex-1 rounded-[18px] border border-[#E8D6C6] bg-white py-3 text-[13px] font-semibold text-[#2C1713]">
-        รอชำระ
+    actionsHtml=`<div class="mt-5 flex gap-2">
+      <button onclick="cancelTable('${tid}')"
+        class="flex-1 rounded-[18px] border border-red-200 bg-red-50 py-3 text-[13px] font-semibold text-red-600 hover:bg-red-100">
+        🚫 ยกเลิกโต๊ะ
       </button>
       <button onclick="showBillConfirm('${tid}')"
         class="flex-[1.6] rounded-[18px] py-3 text-[14px] font-bold text-white btn-red shadow-[0_10px_22px_rgba(225,39,23,0.28)]">
         ปิดบิล · ${fmtMoney(total)}
       </button>
-    </div>
-    <button onclick="cancelTable('${tid}')"
-      class="mt-2 w-full rounded-[18px] border border-red-200 bg-red-50 py-2.5 text-[12px] font-semibold text-red-600 hover:bg-red-100">
-      🚫 ยกเลิกโต๊ะ (ล้างออเดอร์ทั้งหมด)
-    </button>`;
+    </div>`;
   } else if(t.status==='billing'){
-    actionsHtml=`
-    <div class="mt-5">
+    actionsHtml=`<div class="mt-5">
       <button onclick="showBillConfirm('${tid}')"
         class="w-full rounded-[18px] py-3.5 text-[14px] font-bold text-white btn-red shadow-[0_10px_22px_rgba(225,39,23,0.28)]">
         ยืนยันปิดบิล · ${fmtMoney(total)}
       </button>
-    </div>
-    <button onclick="cancelTable('${tid}')"
-      class="mt-2 w-full rounded-[18px] border border-red-200 bg-red-50 py-2.5 text-[12px] font-semibold text-red-600 hover:bg-red-100">
-      🚫 ยกเลิกโต๊ะ (ล้างออเดอร์ทั้งหมด)
-    </button>`;
+    </div>`;
   }
 
   $('#sheet-content').html(`
@@ -449,33 +430,6 @@ function showSheet(tid){
 
 function closeSheet(){ $('#overlay,#sheet').addClass('hidden'); selectedTableId=null; }
 
-function cancelTable(tid){
-  if(!confirm(
-    '🚫 ยกเลิกโต๊ะ ' + tid + '?\n\n' +
-    'ออเดอร์ทั้งหมดที่ยังไม่ได้ชำระจะถูกลบออก\n' +
-    'โต๊ะจะกลับเป็น "ว่าง" ทันที\n\n' +
-    'ยืนยันหรือไม่?'
-  )) return;
-
-  $.ajax({
-    url: 'api/table.php?id=' + encodeURIComponent(tid),
-    method: 'PATCH',
-    contentType: 'application/json',
-    data: JSON.stringify({ action: 'cancel' }),
-    success: function(){
-      closeSheet();
-      loadAll();
-      // แสดง toast
-      const toast = $('<div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[99] rounded-2xl bg-[#2C1713] px-5 py-3 text-[13px] font-semibold text-white shadow-xl">🚫 ยกเลิกโต๊ะ ' + tid + ' แล้ว</div>');
-      $('body').append(toast);
-      setTimeout(()=>toast.fadeOut(400,()=>toast.remove()), 2500);
-    },
-    error: function(r){
-      alert('ยกเลิกไม่สำเร็จ: ' + (r.responseJSON?.error || 'เกิดข้อผิดพลาด'));
-    }
-  });
-}
-
 function openTable(tid){
   const g=parseInt($('#guests-input').val())||1;
   $.ajax({url:'api/table.php?id='+encodeURIComponent(tid),method:'PATCH',
@@ -493,6 +447,19 @@ function setStatus(tid,status){
   });
 }
 
+function cancelTable(tid){
+  if(!confirm('🚫 ยกเลิกโต๊ะ '+tid+' ?\n\nล้างออเดอร์ทั้งหมด และปิดโต๊ะ')) return;
+  $.ajax({url:'api/table.php?id='+encodeURIComponent(tid),method:'PATCH',
+    contentType:'application/json',data:JSON.stringify({action:'cancel'}),
+    success:()=>{
+      closeSheet();
+      loadAll();
+      alert('✅ ยกเลิกโต๊ะ '+tid+' เรียบร้อย');
+    },
+    error:()=>alert('ยกเลิกไม่สำเร็จ')
+  });
+}
+
 /* ─── Bill confirm — 3-screen flow ─── */
 let pendingCloseTid=null;
 
@@ -503,7 +470,7 @@ function showBillConfirm(tid){
   const tableOrds=orders.filter(o=>o.tableId===tid);
   const allItems=[]; tableOrds.forEach(o=>o.items.forEach(i=>allItems.push(i)));
   const sub=allItems.reduce((s,i)=>s+i.price*i.quantity,0);
-  const vat=Math.round(sub*VAT_RATE); const total=sub+vat;
+  const {vat,svc,total}=calcTotals(sub);
 
   const itemsHtml=allItems.length
     ? allItems.map(i=>`
@@ -540,7 +507,8 @@ function showBillConfirm(tid){
     <!-- ยอดรวม -->
     <div class="mb-5 rounded-[18px] bg-gradient-to-br from-[#FFF5F0] to-[#FFE9DE] p-4 ring-1 ring-[#F2D1BD]/50">
       <div class="flex justify-between text-[12px] text-[#7C5B47]"><span>ยอดอาหาร</span><span class="tabular-nums">${fmtMoney(sub)}</span></div>
-      <div class="flex justify-between text-[12px] text-[#7C5B47] mt-1"><span>VAT 7%</span><span class="tabular-nums">${fmtMoney(vat)}</span></div>
+      ${vat>0?`<div class="flex justify-between text-[12px] text-[#7C5B47] mt-1"><span>VAT ${settings.vatRate||0}%</span><span class="tabular-nums">${fmtMoney(vat)}</span></div>`:''}
+      ${svc>0?`<div class="flex justify-between text-[12px] text-[#7C5B47] mt-1"><span>Service Charge ${settings.serviceCharge||0}%</span><span class="tabular-nums">${fmtMoney(svc)}</span></div>`:''}
       <div class="flex items-end justify-between mt-3 pt-2.5 border-t border-[#EFD9CC]">
         <span class="text-[13px] font-semibold text-[#2C1713]">รวมต้องชำระ</span>
         <span class="text-[26px] font-extrabold text-[#E12717] tabular-nums leading-none">${fmtMoney(total)}</span>
@@ -705,13 +673,77 @@ function doCloseBill(pm, cashReceived){
   });
 }
 
-/* ─── Print receipt ─── */
+/* ─── Print receipt — routes to API or browser print ─── */
 function printBillReceipt(tid){
+  if(settings.printerEnabled==='1'){
+    printBillReceiptApi(tid);
+  } else {
+    printBillReceiptWindow(tid);
+  }
+}
+
+/* ─── API print (ESC/POS → NEO 8300) ─── */
+function printBillReceiptApi(tid){
   const t=tables.find(x=>x.id===tid); if(!t) return;
   const tableOrds=orders.filter(o=>o.tableId===tid);
   const allItems=[]; tableOrds.forEach(o=>o.items.forEach(i=>allItems.push(i)));
   const sub=allItems.reduce((s,i)=>s+i.price*i.quantity,0);
-  const vat=Math.round(sub*VAT_RATE); const total=sub+vat;
+  const {vat,svc,total}=calcTotals(sub);
+  const now=new Date().toLocaleString('th-TH',{timeZone:'Asia/Bangkok',hour:'2-digit',minute:'2-digit'});
+
+  const payload={
+    restaurantName: settings.restaurantName||'แซ่บกลางซอย',
+    cuisine:        settings.cuisine||'',
+    tableId:        tid,
+    guests:         t.guests||null,
+    time:           now,
+    items:          allItems,
+    subtotal:       sub,
+    vatRate:        7,
+    vat:            vat,
+    total:          total,
+    paymentMethod:  '',
+    promptPayQr:    settings.promptPayQr||'',
+  };
+
+  $.ajax({
+    url:'api/print_receipt.php', method:'POST',
+    contentType:'application/json', data:JSON.stringify(payload),
+    success:function(r){
+      if(r.ok){
+        showCashierToast('🖨 พิมพ์ใบเสร็จแล้ว','emerald');
+      } else {
+        if(confirm('พิมพ์ผ่าน API ไม่สำเร็จ:\n'+r.error+'\n\nต้องการเปิด print dialog แทนไหม?')){
+          printBillReceiptWindow(tid);
+        }
+      }
+    },
+    error:function(){
+      if(confirm('ไม่สามารถเชื่อมต่อ print API ได้\nต้องการเปิด print dialog แทนไหม?')){
+        printBillReceiptWindow(tid);
+      }
+    }
+  });
+}
+
+function showCashierToast(msg, color){
+  const toast=$('<div>')
+    .text(msg)
+    .css({position:'fixed',bottom:'24px',left:'50%',transform:'translateX(-50%)',
+          zIndex:9999,pointerEvents:'none'})
+    .addClass(`rounded-xl px-5 py-3 text-[13px] font-semibold text-white shadow-xl
+      ${color==='emerald'?'bg-emerald-500':'bg-red-500'}`);
+  $('body').append(toast);
+  setTimeout(()=>toast.fadeOut(400,function(){$(this).remove()}),2800);
+}
+
+/* ─── Browser window.print() fallback ─── */
+function printBillReceiptWindow(tid){
+  const t=tables.find(x=>x.id===tid); if(!t) return;
+  const tableOrds=orders.filter(o=>o.tableId===tid);
+  const allItems=[]; tableOrds.forEach(o=>o.items.forEach(i=>allItems.push(i)));
+  const sub=allItems.reduce((s,i)=>s+i.price*i.quantity,0);
+  const {vat,svc,total}=calcTotals(sub);
   const qrUrl=settings.promptPayQr||'';
   const now=new Date().toLocaleString('th-TH',{timeZone:'Asia/Bangkok',hour:'2-digit',minute:'2-digit',day:'2-digit',month:'short'});
   const rName=settings.restaurantName||'แซ่บกลางซอย';
@@ -760,7 +792,8 @@ function printBillReceipt(tid){
     <table><tbody>${rows}</tbody></table>
     <hr class="dash"/>
     <div class="tot"><span>ยอดอาหาร</span><span>฿${sub.toLocaleString()}</span></div>
-    <div class="tot"><span>VAT 7%</span><span>฿${vat.toLocaleString()}</span></div>
+    ${vat>0?`<div class="tot"><span>VAT ${settings.vatRate||0}%</span><span>฿${vat.toLocaleString()}</span></div>`:''}
+    ${svc>0?`<div class="tot"><span>Service Charge ${settings.serviceCharge||0}%</span><span>฿${svc.toLocaleString()}</span></div>`:''}
     <div class="grand"><span class="lbl">รวมต้องชำระ</span><span class="amt">฿${total.toLocaleString()}</span></div>
     ${qrUrl?`
     <div class="qr-sec">
@@ -935,97 +968,178 @@ function cashierDeleteItem(orderId, menuId){
 
 /* ─── Menu Picker functions ─── */
 function showMenuPicker(tid){
+  pickerManual=false;
   pickerTid=tid; pickerActiveCat='ทั้งหมด'; pickerSearch=''; pickerCart={};
   $('#picker-table-label').text(tid);
   $('#picker-search').val('');
+  $('#picker-manual-pay').addClass('hidden');
+  $('#picker-submit-btn').text('ส่งออเดอร์ให้ครัว');
   renderPickerCats(); renderPickerMenu(); renderPickerFooter();
   $('#picker-overlay').removeClass('hidden');
   $('#picker-panel').addClass('open');
 }
+
+function showManualBillPicker(){
+  pickerManual=true;
+  pickerTid='walk-in'; pickerActiveCat='ทั้งหมด'; pickerSearch=''; pickerCart={};
+  $('#picker-table-label').text('Walk-in');
+  $('#picker-search').val('');
+  $('#picker-manual-pay').removeClass('hidden');
+  $('#picker-pay-method').val('cash');
+  $('#picker-cash-received').val('');
+  $('#picker-submit-btn').text('🧾 สร้างบิล Walk-in');
+  renderPickerCats(); renderPickerMenu(); renderPickerFooter();
+  $('#picker-overlay').removeClass('hidden');
+  $('#picker-panel').addClass('open');
+}
+
 function closePicker(){
   $('#picker-overlay').addClass('hidden');
   $('#picker-panel').removeClass('open');
-  pickerTid=null;
+  pickerTid=null; pickerManual=false;
+  $('#picker-manual-pay').addClass('hidden');
+  $('#picker-submit-btn').text('ส่งออเดอร์ให้ครัว');
 }
+
+/* Routes submit to correct handler based on mode */
+function pickerSubmitDispatch(){
+  if(pickerManual) submitManualBill();
+  else pickerSubmit();
+}
+
+/* ─── Submit Manual / Walk-in Bill ─── */
+function submitManualBill(){
+  const items=Object.values(pickerCart).filter(e=>e.qty>0).map(e=>({
+    menuId:   e.item.id,
+    name:     e.displayName||e.item.name,
+    price:    e.finalPrice??e.item.price,
+    quantity: e.qty,
+    note:     e.note||null,
+  }));
+  if(!items.length) return alert('กรุณาเลือกเมนูอย่างน้อย 1 รายการ');
+
+  const pm = $('#picker-pay-method').val();
+  const cr = pm==='cash' ? (parseFloat($('#picker-cash-received').val())||null) : null;
+
+  const btn=$('#picker-submit-btn');
+  btn.prop('disabled',true).text('⏳ กำลังสร้างบิล...');
+
+  $.ajax({
+    url:'api/bills.php', method:'POST',
+    contentType:'application/json',
+    data: JSON.stringify({table_id:'walk-in', payment_method:pm, guests:1, cash_received:cr, items}),
+    success:function(r){
+      closePicker();
+      loadAll();
+      const change = cr && r.total ? Math.max(0, cr - r.total) : 0;
+      const msg = '🧾 Walk-in สำเร็จ · ฿'+(r.total||0).toLocaleString()
+                + (change>0?' · ทอน ฿'+change.toLocaleString():'');
+      showCashierToast(msg,'emerald');
+    },
+    error:function(r){
+      btn.prop('disabled',false).text('🧾 สร้างบิล Walk-in');
+      alert('สร้างบิลไม่สำเร็จ: '+(r.responseJSON?.error||''));
+    }
+  });
+}
+
+const CAT_EMOJI = {
+  'ทั้งหมด':'🍽','ยอดฮิต':'⭐','ข้าว/เส้น':'🍚','ทานเล่น':'🍿',
+  'เครื่องดื่ม':'🥤','ของหวาน':'🍰','อาหาร':'🍛','กับข้าว':'🥘',
+  'ซีฟู้ด':'🦐','หมู':'🥩','ไก่':'🍗','ผัก':'🥦',
+};
+function catEmoji(c){ return CAT_EMOJI[c]||'🍴'; }
 
 function renderPickerCats(){
   const cats=['ทั้งหมด',...new Set(menuItems.map(m=>m.category))];
-  $('#picker-cats').html(cats.map(c=>`
-    <button type="button" data-pcat="${escHtml(c)}"
-      class="picker-cat-btn shrink-0 rounded-full px-3.5 py-1.5 text-[11px] font-medium transition-colors
-        ${c===pickerActiveCat?'btn-red text-white shadow-[0_4px_10px_rgba(225,39,23,0.2)]':'bg-white text-[#7C5B47] ring-1 ring-[#F0E0D4]'}">
-      ${escHtml(c)}
-    </button>`).join(''));
+  $('#picker-sidebar').html(cats.map(c=>{
+    const count = c==='ทั้งหมด' ? menuItems.length : menuItems.filter(m=>m.category===c).length;
+    const active = c===pickerActiveCat;
+    return `<button type="button" data-pcat="${escHtml(c)}"
+      class="picker-cat-btn w-full rounded-xl py-2.5 px-1 text-center transition-all
+        ${active?'picker-cat-active shadow-[0_3px_8px_rgba(225,39,23,0.28)]':'text-[#7C5B47] hover:bg-white hover:shadow-sm'}">
+      <span class="block text-[18px] leading-none mb-0.5">${catEmoji(c)}</span>
+      <span class="block text-[9px] font-semibold leading-snug" style="word-break:break-word">${escHtml(c)}</span>
+      <span class="block text-[8px] tabular-nums ${active?'text-white/70':'text-[#C4A98A]'}">${count}</span>
+    </button>`;
+  }).join(''));
 }
 
 function renderPickerMenu(){
-  const q=pickerSearch.toLowerCase();
-  const filtered=menuItems.filter(m=>{
+  const q = pickerSearch.toLowerCase();
+  const filtered = menuItems.filter(m=>{
     if(pickerActiveCat!=='ทั้งหมด' && m.category!==pickerActiveCat) return false;
     if(q && !(m.name+' '+m.category).toLowerCase().includes(q)) return false;
     return true;
   });
+
   if(!filtered.length){
-    $('#picker-items').html('<p class="py-10 text-center text-[12px] text-[#9D7F6A]">ไม่พบเมนู</p>');
+    $('#picker-items').html('<div class="flex items-center justify-center h-full py-20"><p class="text-[13px] text-[#9D7F6A]">ไม่พบเมนู</p></div>');
     return;
   }
-  const tagMap={เผ็ด:'bg-red-50 text-red-600',ฮิต:'bg-green-50 text-green-700',โปร:'bg-amber-50 text-amber-700'};
-  const svgPlus=`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>`;
-  $('#picker-items').html(filtered.map(m=>{
+
+  const tagMap = {เผ็ด:'bg-red-50 text-red-600',ฮิต:'bg-emerald-50 text-emerald-700',โปร:'bg-amber-50 text-amber-700'};
+
+  const tiles = filtered.map(m=>{
     const hasOpts = m.options && m.options.length>0;
-    // total qty across all variations of this item
     const totalQty = Object.values(pickerCart).filter(e=>e.item.id===m.id).reduce((s,e)=>s+e.qty,0);
-    const entry = pickerCart[m.id]; // only exists for non-option items
-    const tagHtml=m.tag?`<span class="shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${tagMap[m.tag]||''}">${escHtml(m.tag)}</span>`:'';
+    const entry = pickerCart[m.id];
+    const inCart = totalQty > 0;
 
-    // Controls differ: options item shows badge+add; plain item shows +/-
-    let controlHtml;
-    if(hasOpts){
-      controlHtml=`<div class="flex items-center gap-1.5">
-        ${totalQty>0?`<span class="flex h-6 w-6 items-center justify-center rounded-full bg-[#E12717] text-[10px] font-bold text-white tabular-nums">${totalQty}</span>`:''}
-        <button type="button" data-pid="${escHtml(m.id)}"
-          class="picker-add flex h-8 w-8 items-center justify-center rounded-full btn-red text-white shadow-[0_4px_10px_rgba(225,39,23,0.25)]"
-          title="เลือกตัวเลือก">${svgPlus}</button>
-      </div>`;
-    } else if(totalQty>0){
-      controlHtml=`<div class="flex items-center gap-0.5 rounded-full bg-[#F7EFE7] p-0.5">
-        <button type="button" data-pid="${escHtml(m.id)}" class="picker-dec flex h-7 w-7 items-center justify-center rounded-full bg-white text-[#5A4338] text-[14px] font-bold shadow-sm leading-none">−</button>
-        <span class="min-w-[18px] text-center text-[12px] font-bold tabular-nums">${totalQty}</span>
-        <button type="button" data-pid="${escHtml(m.id)}" class="picker-inc flex h-7 w-7 items-center justify-center rounded-full bg-white text-[#5A4338] text-[14px] font-bold shadow-sm leading-none">+</button>
-      </div>`;
-    } else {
-      controlHtml=`<button type="button" data-pid="${escHtml(m.id)}"
-        class="picker-add flex h-8 w-8 items-center justify-center rounded-full btn-red text-white shadow-[0_4px_10px_rgba(225,39,23,0.25)]">${svgPlus}</button>`;
-    }
-
-    const optBadge = hasOpts
-      ? `<span class="shrink-0 rounded-full bg-[#FFF0EE] px-2 py-0.5 text-[9px] font-semibold text-[#E12717]">มีตัวเลือก</span>`
+    const tagBadge = m.tag
+      ? `<span class="absolute top-1.5 left-1.5 rounded-full px-1.5 py-0.5 text-[8px] font-bold ${tagMap[m.tag]||''}">${escHtml(m.tag)}</span>`
+      : '';
+    const qtyBadge = inCart
+      ? `<span class="absolute top-1.5 right-1.5 flex h-5 min-w-[20px] px-1 items-center justify-center rounded-full bg-[#E12717] text-[9px] font-extrabold text-white tabular-nums">${totalQty}</span>`
       : '';
 
-    return `<div class="rounded-[18px] bg-white ring-1 ring-[#F0E0D4] overflow-hidden">
-      <div class="flex items-center gap-3 px-4 py-3">
-        <img src="${escHtml(m.image)||'https://placehold.co/48x48/F7EFE7/9D7F6A?text=🍽'}"
-          alt="${escHtml(m.name)}" class="h-12 w-12 shrink-0 rounded-xl object-cover bg-[#F7EFE7]"
-          onerror="this.src='https://placehold.co/48x48/F7EFE7/9D7F6A?text=🍽'"/>
-        <div class="min-w-0 flex-1">
-          <div class="flex items-center gap-1.5 flex-wrap">
-            <p class="text-[13px] font-semibold text-[#2C1713] truncate">${escHtml(m.name)}</p>
-            ${tagHtml}${optBadge}
-          </div>
-          <p class="text-[11px] text-[#9D7F6A]">${escHtml(m.category)}</p>
+    // bottom controls
+    let controls;
+    if(hasOpts){
+      controls = `<div class="flex items-center justify-between mt-2 pt-2 border-t border-dashed border-[#F0E0D4]">
+        <span class="text-[13px] font-extrabold text-[#E12717] tabular-nums">฿${m.price.toLocaleString()}</span>
+        <div class="flex items-center gap-1">
+          ${inCart?`<span class="text-[9px] font-bold text-[#E12717]">${totalQty}x</span>`:''}
+          <button data-pid="${escHtml(m.id)}" class="picker-add flex h-8 w-8 items-center justify-center rounded-xl btn-red text-white text-[18px] font-bold leading-none shadow-[0_3px_8px_rgba(225,39,23,0.3)]">+</button>
         </div>
-        <div class="flex items-center gap-2 shrink-0">
-          <span class="text-[13px] font-semibold text-[#E12717] tabular-nums">฿${m.price.toLocaleString('th-TH')}</span>
-          ${controlHtml}
+      </div>`;
+    } else if(inCart){
+      controls = `<div class="flex items-center justify-between mt-2 pt-2 border-t border-dashed border-[#F0E0D4]">
+        <span class="text-[13px] font-extrabold text-[#E12717] tabular-nums">฿${m.price.toLocaleString()}</span>
+        <div class="flex items-center gap-0.5 rounded-xl bg-[#F7EFE7] p-0.5">
+          <button data-pid="${escHtml(m.id)}" class="picker-dec flex h-7 w-7 items-center justify-center rounded-lg bg-white text-[#5A4338] text-[16px] font-bold shadow-sm leading-none">−</button>
+          <span class="min-w-[16px] text-center text-[12px] font-extrabold tabular-nums">${totalQty}</span>
+          <button data-pid="${escHtml(m.id)}" class="picker-inc flex h-7 w-7 items-center justify-center rounded-lg bg-white text-[#5A4338] text-[16px] font-bold shadow-sm leading-none">+</button>
         </div>
       </div>
-      ${(!hasOpts&&totalQty>0)?`<div class="px-4 pb-3">
-        <input type="text" data-pid="${escHtml(m.id)}" placeholder="โน้ตพิเศษ เช่น เผ็ดน้อย ไม่ใส่ผักชี..."
-          class="picker-note w-full rounded-xl border border-[#F0E0D4] bg-[#FFF9F5] px-3.5 py-2 text-[12px] text-[#2C1713] placeholder:text-[#C4A98A] outline-none focus:border-[#E12717]"
-          value="${escHtml(entry?.note||'')}"/>
-      </div>`:''}
+      <input type="text" data-pid="${escHtml(m.id)}" value="${escHtml(entry?.note||'')}" placeholder="โน้ต เช่น เผ็ดน้อย..."
+        class="picker-note mt-1.5 w-full rounded-lg border border-[#F0E0D4] bg-[#FFF9F5] px-2.5 py-1.5 text-[10px] text-[#2C1713] placeholder:text-[#C4A98A] outline-none focus:border-[#E12717]"/>`;
+    } else {
+      controls = `<div class="flex items-center justify-between mt-2 pt-2 border-t border-dashed border-[#F0E0D4]">
+        <span class="text-[13px] font-extrabold text-[#E12717] tabular-nums">฿${m.price.toLocaleString()}</span>
+        <button data-pid="${escHtml(m.id)}" class="picker-add flex h-8 w-8 items-center justify-center rounded-xl btn-red text-white text-[18px] font-bold leading-none shadow-[0_3px_8px_rgba(225,39,23,0.3)]">+</button>
+      </div>`;
+    }
+
+    return `<div class="relative rounded-[14px] bg-white overflow-hidden transition-all
+      ${inCart?'ring-2 ring-[#E12717]/40 shadow-[0_3px_12px_rgba(225,39,23,0.14)]':'ring-1 ring-[#F0E0D4]'}">
+      <!-- Image -->
+      <div class="relative bg-[#F7EFE7]">
+        <img src="${escHtml(m.image)||'https://placehold.co/200x120/F7EFE7/9D7F6A?text=🍽'}"
+          class="w-full h-[78px] object-cover"
+          onerror="this.src='https://placehold.co/200x120/F7EFE7/9D7F6A?text=🍽'"/>
+        ${tagBadge}${qtyBadge}
+        ${hasOpts?`<span class="absolute bottom-1 right-1 rounded-full bg-black/40 px-1.5 py-0.5 text-[8px] font-semibold text-white backdrop-blur-sm">มีตัวเลือก</span>`:''}
+      </div>
+      <!-- Info -->
+      <div class="p-2.5">
+        <p class="text-[11px] font-semibold text-[#2C1713] line-clamp-2 leading-tight min-h-[28px]">${escHtml(m.name)}</p>
+        ${controls}
+      </div>
     </div>`;
-  }).join(''));
+  }).join('');
+
+  $('#picker-items').html(`<div class="grid grid-cols-2 gap-2.5 p-3">${tiles}</div>`);
 }
 
 function renderPickerFooter(){
